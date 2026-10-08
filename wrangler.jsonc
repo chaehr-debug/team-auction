@@ -1,0 +1,22 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "team-auction",
+  "main": "src/worker.js",
+  "compatibility_date": "2026-10-01",
+  "assets": {
+    "directory": "./public",
+    "binding": "ASSETS",
+    // 아래 경로는 Worker 코드가 먼저 처리, 나머지는 정적 파일
+    "run_worker_first": ["/api/*", "/ws/*", "/r/*", "/overlay/*", "/uploads/*"]
+  },
+  "durable_objects": {
+    "bindings": [
+      { "name": "ROOMS", "class_name": "AuctionRoom" },
+      { "name": "IMAGES", "class_name": "ImageStore" }
+    ]
+  },
+  "migrations": [
+    { "tag": "v1", "new_sqlite_classes": ["AuctionRoom", "ImageStore"] }
+  ],
+  "observability": { "enabled": true }
+}

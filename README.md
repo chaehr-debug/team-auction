@@ -1,0 +1,95 @@
+# 팀 경매 (자낳대 방식)
+
+옵저버 1명 + 감독 최대 8명 + 스트리머 최대 24명으로 하는 실시간 팀 경매입니다.
+
+## 주소 (Cloudflare 배포)
+
+https://team-auction.coach-draft-game.workers.dev
+
+## 개발 / 배포
+
+```bash
+npm install
+npm run dev       # 로컬 실행 http://localhost:8787 (wrangler dev)
+npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
+```
+
+구조: Cloudflare Workers + Durable Objects
+- `src/logic.js` — 경매 규칙 (순수 로직)
+- `src/worker.js` — 라우팅 · 룸 Durable Object (WebSocket, 알람으로 타이머 판정) · 이미지 저장 Durable Object
+- `public/` — 화면 (정적 파일)
+
+## 진행 흐름
+
+| 단계 | 화면 | 내용 |
+|---|---|---|
+| 1. 룸 접속 | `/` | 옵저버: 룸 생성 (스트리머 ≤24, 타이머 5~20초, 포인트 500~2000) · 감독: 룸 코드/링크로 입장 |
+| 2. 준비 | `/r/코드` | 옵저버: 순서 지정(드래그/▲▼/무작위), 최소 입찰가 지정 · 감독: 닉네임 등록, 순서/포인트 미리보기 |
+| 3. 경매 | `/r/코드` | 10P 단위 입찰, 상위 입찰 시 타이머 10초 리셋, 일시 정지/재진행 |
+| 4. 유찰 경매 | `/r/코드` | 유찰된 스트리머를 순서대로 재경매 (3명 완성 감독은 참여 불가) |
+| 5. 결과 | `/r/코드` | 팀별 구성 및 낙찰가 |
+
+### 링크 종류
+- 감독 입장: `/r/코드`
+- 옵저버(진행자 전용): `/r/코드?key=옵저버키` — **공개 금지**
+- 방송 오버레이: `/overlay/코드`
+  - `?panels=log&bg=transparent` 로그만 / 투명 배경
+  - `?panels=lot` 현재 경매 대상만
+  - `?panels=directors,lot,log` 원하는 조합
+  - `bg=dark | transparent | green`
+  - 패널을 하나씩 OBS 브라우저 소스로 따로 띄우고 OBS에서 배치하는 방식도 가능합니다.
+
+## 레이아웃 수정 가이드
+
+| 바꾸고 싶은 것 | 수정할 파일 |
+|---|---|
+| 색상(게임 공식 컬러), 폰트(Pretendard · Oxanium), 팀 색상, 모서리 | `public/css/theme.css` |
+| 패널 위치/크기 (화면 배치) | `public/css/layout.css` — `grid-template-areas` |
+| 어떤 화면에 어떤 패널을 보여줄지 | `public/js/views.js` |
+| 패널 내부 모양 (HTML) | `public/js/panels.js` |
+| 패널 내부 스타일 | `public/css/base.css` |
+
+예) 감독 경매 화면에서 로그를 오른쪽으로 옮기려면 `layout.css`의 `.layout-auction-director` 에서 이름만 바꿔 배치하면 됩니다.
+
+현재 경매 대상(`lot`) 패널은 패널 크기에 맞춰 글자·이미지가 같이 커지고 작아지므로, 배치를 바꿔도 다시 손볼 필요가 적습니다.
+
+## 프로필 사진
+- 스트리머: 룸 생성 시 이름 옆 동그라미 클릭, 또는 준비 단계 순서 목록의 `사진` 버튼
+- 감독: 입장 시 또는 준비 단계 `내 팀` 패널에서 변경
+- 사진이 없으면 이름 첫 글자로 만든 더미 아바타가 표시됩니다. 업로드한 사진은 Durable Object(ImageStore)에 저장됩니다.
+
+## 규칙 세부 (`src/logic.js` 의 `RULES` 에서 변경)
+- 입찰 단위 10P, 최고가보다 높아야 하며 최소 입찰가 이상
+- 입찰 즉시 보유 포인트에서 '보류' 표시, 상위 입찰이 들어오면 반환, 낙찰 시 확정 차감
+- 팀당 3명 (`teamSize`) — 3명을 채운 감독은 본 경매에서도 입찰 불가
+- 유찰 경매에서 다시 유찰되면 한 바퀴 뒤 재경매. 한 바퀴 동안 낙찰이 하나도 없으면 종료하고 미배정 처리
+- 룸 상태는 변경될 때마다 Durable Object 저장소에 저장됩니다. 연결이 끊기면 화면 상단에 표시되고 자동으로 재접속합니다.
+
+## 테스트
+```bash
+BASE=http://localhost:8787 node test/sim.js   # 규칙 자동 검증 (npm run dev 실행 중)
+BASE=http://localhost:8787 node test/demo.js  # 감독 8명 · 스트리머 24명 데모 룸
+```
+
+## 효과음
+- 파일: `public/sounds/` — `bid`(입찰) · `sold`(낙찰) · `unsold`(유찰) · `tick`(타이머 1초마다)
+- 같은 이름으로 덮어쓰고 `npm run deploy`. 형식/음량 변경은 `public/js/config.js` 의 `SOUNDS`
+- 틱을 마지막 몇 초만 내려면 `config.js` 의 `TICK_LAST_SECONDS` (0 = 매초)
+- 룸 화면: 헤더의 SOUND 버튼으로 켜고 끔 · 오버레이: `?sound=0` 끄기, `?volume=0.5` 음량
+- 더미 소리 다시 만들기: `node tools/make-dummy-sounds.js`
+
+## 용어 (크레딧)
+- 화면: `public/js/config.js` 의 `CURRENCY` (이름 `크레딧`, 단위 `CR`)
+- 서버 로그/오류 문구: `src/logic.js` 의 `CURRENCY` — 두 곳을 같이 바꿔주세요
+
+## 패널 배경 이미지
+- `public/backgrounds/` 에 `queue` · `log` · `directors` · `teams` 이름으로 이미지(webp/png/jpg/gif)를 넣고 `npm run deploy`
+- 이름/패널 연결: `public/js/config.js` 의 `BACKGROUNDS` · 권장 크기는 `public/backgrounds/README.txt`
+
+## 감독 캠 (vdo.ninja)
+- 감독: 준비 단계 `내 팀` 패널의 **내 캠 연결하기** → 열린 vdo.ninja 창에서 카메라 선택 후 창을 계속 열어둠 (시청 링크 자동 등록)
+  - 이미 쓰는 vdo.ninja 시청 링크가 있으면 붙여넣고 저장
+- 옵저버: 감독 카드의 `CAM` 버튼으로 대신 등록/수정 (경매 중에도 가능)
+- 표시: 옵저버 화면 좌하단 · 기본 오버레이 가운데 아래 · `/overlay/코드?panels=cam` 단독
+- 최고 입찰자(마지막으로 입찰한 감독)의 캠이 나오며, 8명 캠을 미리 불러와 즉시 전환
+- 설정(`public/js/config.js` 의 `CAM`): 시청 링크 옵션(`&cleanoutput&noaudio`), 미리 불러오기(`preload`)

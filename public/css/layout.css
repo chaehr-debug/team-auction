@@ -1,0 +1,109 @@
+/* ============================================================
+   레이아웃 — 화면 배치는 이 파일의 grid-template-areas 만 바꾸면 됩니다.
+   각 패널은 [data-panel="이름"] 으로 렌더링되며 같은 이름의 grid-area 를 가집니다.
+   어떤 화면에 어떤 패널이 들어가는지는 js/views.js 에서 정합니다.
+   ============================================================ */
+
+.view {
+  display: grid;
+  gap: var(--gap);
+  padding: var(--gap);
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+.view > [data-panel] { grid-area: var(--area); min-width: 0; min-height: 0; }
+
+/* ── 2단계: 준비 (옵저버) ── */
+.layout-prep-observer {
+  height: 100vh;
+  grid-template-columns: 1.4fr 1fr;
+  grid-template-rows: auto auto auto 1fr;
+  grid-template-areas:
+    "header    header"
+    "order     controls"
+    "order     share"
+    "order     directors";
+}
+/* ── 2단계: 준비 (감독/시청자) ── */
+.layout-prep-director {
+  height: 100vh;
+  grid-template-columns: 1.4fr 1fr;
+  grid-template-rows: auto auto 1fr;
+  grid-template-areas:
+    "header    header"
+    "order     me"
+    "order     directors";
+}
+
+/* ── 3·4단계: 경매 (옵저버) ── */
+.layout-auction-observer {
+  height: 100vh;
+  grid-template-columns: 1fr 1.3fr 1fr;
+  grid-template-rows: auto 1fr 1fr;
+  grid-template-areas:
+    "header    header    header"
+    "queue     lot       directors"
+    "cam       log       directors";
+}
+/* ── 3·4단계: 경매 (감독) ── */
+.layout-auction-director {
+  height: 100vh;
+  grid-template-columns: 1fr 1.3fr 1fr;
+  grid-template-rows: auto 1.4fr auto 1fr;
+  grid-template-areas:
+    "header    header    header"
+    "queue     lot       directors"
+    "queue     bid       directors"
+    "me        log       directors";
+}
+/* ── 3·4단계: 경매 (시청자) ── */
+.layout-auction-viewer {
+  height: 100vh;
+  grid-template-columns: 1fr 1.3fr 1fr;
+  grid-template-rows: auto 1fr 1fr;
+  grid-template-areas:
+    "header    header    header"
+    "queue     lot       directors"
+    "queue     log       directors";
+}
+
+/* ── 5단계: 결과 ── */
+.layout-result {
+  grid-template-columns: 1fr;
+  grid-template-rows: auto 1fr auto;
+  grid-template-areas:
+    "header"
+    "teams"
+    "unassigned";
+}
+
+/* ── 방송 오버레이 (overlay.html) — 기본 배치 ── */
+.layout-overlay {
+  height: 100vh;
+  grid-template-columns: 1fr 1.2fr 1fr;
+  grid-template-rows: 1.1fr 1fr;
+  grid-template-areas:
+    "directors lot  upcoming"
+    "directors cam  upcoming";
+}
+/* 오버레이에서 패널 1개만 띄울 때 (OBS 브라우저 소스를 패널별로 분리하는 용도) */
+.layout-overlay-single {
+  height: 100vh;
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr;
+}
+.layout-overlay-single > [data-panel] { grid-area: auto; }
+
+/* ── 좁은 화면 (감독이 노트북/모바일로 접속) ── */
+@media (max-width: 1000px) {
+  .view[class*="layout-"] {
+    height: auto;
+    grid-template-columns: 1fr;
+    grid-template-rows: none;
+    grid-template-areas: none;
+  }
+  .view > [data-panel] { grid-area: auto; }
+  .view > [data-panel="lot"] { order: -2; }
+  .view > [data-panel="bid"] { order: -1; }
+  .view > [data-panel="header"] { order: -3; }
+}

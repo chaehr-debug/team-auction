@@ -1,0 +1,86 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>팀 경매</title>
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <style>
+    .landing { max-width: 980px; margin: 0 auto; padding: 40px 16px; display: flex; flex-direction: column; gap: 20px; }
+    .landing h1 { font-size: 34px; }
+    .roles { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .role-btn { padding: 26px; border-radius: var(--radius); border: 2px solid var(--line); background: var(--panel); cursor: pointer; text-align: left; display: flex; flex-direction: column; gap: 6px; }
+    .role-btn b { font-size: 22px; }
+    .role-btn.on { border-color: var(--accent); }
+    .streamer-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 8px; }
+    .streamer-row { display: flex; gap: 8px; align-items: center; }
+    .streamer-row .idx { width: 22px; color: var(--muted); font-weight: 700; text-align: right; }
+    .range-row { display: flex; gap: 12px; align-items: center; }
+    .range-row input[type=range] { flex: 1; accent-color: var(--accent); }
+    .range-row .val { width: 110px; text-align: right; font-weight: 700; font-size: 18px; color: var(--accent-hi); font-family: var(--font-display); }
+    @media (max-width: 700px) { .roles { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body>
+  <div class="landing">
+    <div>
+      <h1>팀 경매</h1>
+      <div class="muted">1. 경매 룸 접속 — 역할을 선택하세요</div>
+    </div>
+
+    <div class="roles">
+      <button class="role-btn" data-role="observer"><b>🎙 옵저버</b><span class="muted">룸 생성 · 스트리머 등록 · 경매 진행</span></button>
+      <button class="role-btn" data-role="director"><b>🧢 감독</b><span class="muted">룸 입장 · 닉네임 설정 · 입찰</span></button>
+    </div>
+
+    <!-- 감독: 룸 입장 -->
+    <section class="panel hidden" id="directorPane">
+      <div class="panel-title">룸 입장</div>
+      <form class="row" id="joinForm">
+        <input class="input grow" id="joinCode" placeholder="룸 코드 또는 룸 링크" required>
+        <button class="btn btn-primary">입장</button>
+      </form>
+    </section>
+
+    <!-- 옵저버: 룸 생성 -->
+    <section class="panel hidden" id="observerPane">
+      <div class="panel-title">룸 생성</div>
+      <form id="createForm" style="display:flex;flex-direction:column;gap:16px">
+        <div class="field">
+          <label for="title">룸 이름</label>
+          <input class="input" id="title" maxlength="40" value="팀 경매">
+        </div>
+        <div class="field">
+          <label>입찰 타이머 (5~20초)</label>
+          <div class="range-row"><input type="range" id="timerSec" min="5" max="20" step="1" value="10"><span class="val num" id="timerVal"></span></div>
+        </div>
+        <div class="field">
+          <label>감독 소지 크레딧 (500~2,000 CR)</label>
+          <div class="range-row"><input type="range" id="startPoints" min="500" max="2000" step="10" value="1000"><span class="val num" id="pointsVal"></span></div>
+        </div>
+        <div class="field">
+          <div class="row" style="justify-content:space-between">
+            <label>경매 대상 스트리머 (<span id="sCount">0</span>/24)</label>
+            <div class="row">
+              <button type="button" class="btn btn-sm" id="fillDummy">더미 24명 채우기</button>
+              <button type="button" class="btn btn-sm" id="pasteNames">이름 일괄 입력</button>
+              <button type="button" class="btn btn-sm" id="addRow">+ 추가</button>
+            </div>
+          </div>
+          <div class="streamer-rows" id="streamerRows"></div>
+        </div>
+        <button class="btn btn-primary btn-lg">룸 생성</button>
+      </form>
+    </section>
+
+    <!-- 옵저버: 내가 만든 룸 -->
+    <section class="panel hidden" id="myRoomsPane">
+      <div class="panel-title">이 브라우저에서 만든 룸</div>
+      <div id="myRooms" style="display:flex;flex-direction:column;gap:6px"></div>
+    </section>
+  </div>
+
+  <script type="module" src="/js/landing.js"></script>
+</body>
+</html>

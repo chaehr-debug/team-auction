@@ -1,0 +1,62 @@
+/* ============================================================
+   테마 토큰 — 방송 색감/폰트를 바꿀 땐 이 파일만 수정하세요.
+   ============================================================ */
+@import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.min.css');
+@import url('https://fonts.googleapis.com/css2?family=Oxanium:wght@400;500;600;700;800&display=swap');
+
+:root {
+  /* ── 게임 공식 컬러 ── */
+  --base-1: #c4c0c0;   /* 밝은 회색 */
+  --base-2: #7a7e93;   /* 블루 그레이 */
+  --base-3: #3b3d3f;   /* 짙은 회색 */
+  --point-1: #8fdbf8;  /* 라이트 시안 */
+  --point-2: #13b0f4;  /* 시안 */
+  --point-3: #1563cf;  /* 블루 */
+
+  /* ── 폰트 ── */
+  --font: 'Pretendard', 'Apple SD Gothic Neo', 'Malgun Gothic', system-ui, sans-serif;
+  --font-display: 'Oxanium', 'Pretendard', 'Malgun Gothic', sans-serif;   /* 숫자·영문·제목 (한글은 Pretendard로 표시) */
+
+  /* ── 화면 색 (공식 컬러에서 파생) ── */
+  --bg: #1d1e20;
+  --bg-2: #2a2c2f;
+  --panel: linear-gradient(180deg, rgba(59, 61, 63, .92), rgba(40, 42, 44, .92));
+  --panel-solid: #2c2e30;
+  --panel-2: #3b3d3f;
+  --inset: #232527;           /* 입력창, 목록 칸 */
+  --line: rgba(196, 192, 192, .12);
+  --line-strong: rgba(143, 219, 248, .35);
+  --text: #ecebeb;
+  --text-2: var(--base-1);
+  --muted: var(--base-2);
+
+  --accent: var(--point-2);        /* 메인 강조 (버튼, 진행 표시) */
+  --accent-hi: var(--point-1);     /* 가격·크레딧 숫자 */
+  --accent-deep: var(--point-3);
+  --accent-ink: #ffffff;
+  --accent-grad: linear-gradient(135deg, var(--point-2), var(--point-3));
+  --glow: 0 0 18px rgba(19, 176, 244, .45);
+
+  --danger: #ff5d6c;   /* 타이머 임박, 오류 */
+  --ok: var(--point-1);
+  --info: var(--point-1);
+
+  --radius: 10px;
+  --radius-sm: 6px;
+  --gap: 14px;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+
+  /* 감독(팀) 고유 색상 — slot 0~7 순서 */
+  --team-0: #13b0f4;
+  --team-1: #ff8a5c;
+  --team-2: #f5d34f;
+  --team-3: #6fdc8c;
+  --team-4: #b18cff;
+  --team-5: #ff6fa7;
+  --team-6: #8fdbf8;
+  --team-7: #e9e6e6;
+}
+
+/* 오버레이 배경 (overlay.html?bg=...) */
+body.bg-transparent { --bg: transparent; --bg-2: transparent; }
+body.bg-green       { --bg: #00b140; --bg-2: #00b140; }
