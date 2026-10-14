@@ -1,5 +1,5 @@
 // 모의 경매 시세표: dak.gg 평가(서버 src/ratings.js) + 끝난 모의 경매 낙찰가 집계
-import { avatar, esc, fmt, cr } from './common.js';
+import { avatar, esc, fmt, cr, mostPicks } from './common.js';
 
 const $ = id => document.getElementById(id);
 let data, mode = 'all', sortKey = 'tier', sortDir = 1;
@@ -11,10 +11,11 @@ const COLS = [
       <div class="nick">${esc(r.nick ?? '')}</div></div></div>` },
   { key: 'power', label: '전력 점수', get: r => r.power, fmt: r => `<b class="num">${fmt(r.power)}</b>` },
   { key: 'rp', label: '최고 RP', get: r => r.rp, fmt: r => `<span class="num">${fmt(r.rp)}</span>${r.bestSeason ? ` <span class="dim num" style="font-size:12px">시즌 ${r.bestSeason}</span>` : ''}${r.curRp != null && r.curRp !== r.rp ? `<div class="dim num" style="font-size:12px">이번 시즌 ${fmt(r.curRp)}</div>` : ''}` },
+  { key: 'most', label: '최고 시즌 모스트', get: r => r.most?.[0]?.name ?? '', fmt: r => mostPicks(r.most, { size: 20 }) || '<span class="dim">–</span>' },
   { key: 'tk', label: '평균 TK', get: r => r.tk, fmt: r => `<span class="num">${r.tk.toFixed(2)}</span>` },
   { key: 'rank', label: '평균 순위', get: r => -r.rank, fmt: r => `<span class="num">${r.rank.toFixed(2)}</span> <span class="dim num">(${r.placePts}점)</span>` },
   { key: 'perf', label: '라운드 기대점수', get: r => r.perf, fmt: r => `<span class="num">${r.perf.toFixed(2)}</span>` },
-  { key: 'play', label: '판수', get: r => r.play, fmt: r => `<span class="num ${r.play < 100 ? 'dim' : ''}">${fmt(r.play)}</span>` },
+  { key: 'play', label: '이번 시즌 판수', get: r => r.play, fmt: r => `<span class="num ${r.play < 100 ? 'dim' : ''}">${fmt(r.play)}</span>` },
   { key: 'value', label: '평가 기준가', get: r => r.value1000, fmt: r => cr(r.value1000) },
   { key: 'avg', label: '모의 평균 낙찰가', get: r => r.m?.avg ?? -1, fmt: r => r.m?.avg != null ? `<span class="bar" style="width:${Math.round(60 * r.m.avg / maxAvg())}px"></span><b>${cr(r.m.avg)}</b>` : '<span class="dim">–</span>' },
   { key: 'range', label: '최저 ~ 최고', get: r => r.m?.max ?? -1, fmt: r => r.m?.avg != null ? `<span class="num">${fmt(r.m.min)} ~ ${fmt(r.m.max)}</span>` : '<span class="dim">–</span>' },
@@ -61,7 +62,7 @@ $('table').addEventListener('click', e => {
   const th = e.target.closest('th[data-key]');
   if (!th) return;
   if (sortKey === th.dataset.key) sortDir *= -1;
-  else { sortKey = th.dataset.key; sortDir = ['tier', 'name'].includes(sortKey) ? 1 : -1; }
+  else { sortKey = th.dataset.key; sortDir = ['tier', 'name', 'most'].includes(sortKey) ? 1 : -1; }
   render();
 });
 $('mode').addEventListener('click', e => {

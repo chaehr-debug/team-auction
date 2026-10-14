@@ -4,7 +4,7 @@
 // 새 패널을 추가하면 views.js 와 layout.css 에 이름만 등록하면 됩니다.
 // ctx = { state, d(파생값), role, me(내 감독 정보), links, sound? }
 // ============================================================
-import { esc, fmt, cr, CURRENCY, avatar, teamColor, remainingMs, PHASES } from './common.js';
+import { esc, fmt, cr, CURRENCY, avatar, teamColor, remainingMs, PHASES, mostPicks } from './common.js';
 import { CAM } from './config.js';
 
 const panel = (title, body, extra = '') =>
@@ -274,11 +274,14 @@ const cam = {
   },
 };
 
-/** dak.gg 평가 요약 (최고 RP · 평균 TK · 평균 순위) */
+/** dak.gg 평가 요약 (최고 RP + 그 시즌 모스트 3 / 현재 RP · 평균 TK · 평균 순위) */
 export function statsLine(s) {
   const st = s?.stats;
   if (!st || st.noData) return '';
-  return `<div class="lot-stats">최고 RP <b class="num">${fmt(st.rp)}</b>${st.bestSeason ? ` <span class="muted">(시즌 ${st.bestSeason})</span>` : ''} · 평균 TK <b class="num">${st.tk.toFixed(2)}</b> · 평균 순위 <b class="num">${st.rank.toFixed(2)}</b></div>`;
+  const season = n => n ? ` <span class="muted">(시즌 ${n})</span>` : '';
+  // 최고 RP 시즌 줄: 최고 RP + 그 시즌 모스트 / 현재 시즌 줄: 현재 RP + 평균 TK · 평균 순위
+  return `<div class="lot-stats lot-most">최고 RP <b class="num">${fmt(st.rp)}</b>${season(st.bestSeason)}${st.most?.length ? ` · 모스트 ${mostPicks(st.most)}` : ''}</div>
+    <div class="lot-stats">${st.curRp != null ? `현재 RP <b class="num">${fmt(st.curRp)}</b>${season(st.curSeason)} · ` : ''}평균 TK <b class="num">${st.tk.toFixed(2)}</b> · 평균 순위 <b class="num">${st.rank.toFixed(2)}</b></div>`;
 }
 
 // ── 현재 경매 대상 ──

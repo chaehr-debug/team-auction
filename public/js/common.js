@@ -158,3 +158,10 @@ export const PHASES = [
   ['rebid', '유찰 경매'],
   ['result', '결과'],
 ];
+
+/** 최고 RP 시즌 모스트 3 (실험체 이미지 + 이름) */
+export function mostPicks(most, { size = 24 } = {}) {
+  if (!most?.length) return '';
+  return `<span class="most-picks">${most.map(m => `<span class="most-pick" title="${esc(m.name)} ${m.play}판">${m.img
+    ? `<img src="${esc(m.img)}" alt="" width="${size}" height="${size}" loading="lazy" onerror="this.remove()">` : ''}${esc(m.name)}</span>`).join('')}</span>`;
+}

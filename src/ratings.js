@@ -27,7 +27,7 @@ function build() {
   const withData = rows.filter(r => !r.noData);
   const median = arr => { const s = [...arr].sort((a, b) => a - b); return s.length ? s[Math.floor(s.length / 2)] : 0; };
   // 기록이 없는 인원은 중앙값으로 대신 평가
-  for (const r of rows) if (r.noData) Object.assign(r, { rp: median(withData.map(x => x.rp)), tk: median(withData.map(x => x.tk)), rank: median(withData.map(x => x.rank)), play: 0, curRp: null, bestSeason: null });
+  for (const r of rows) if (r.noData) Object.assign(r, { rp: median(withData.map(x => x.rp)), tk: median(withData.map(x => x.tk)), rank: median(withData.map(x => x.rank)), play: 0, curRp: null, bestSeason: null, most: [] });
 
   for (const r of rows) r.perfRaw = r.tk + placePoints(r.rank);
   const meanPerf = withData.reduce((s, r) => s + r.perfRaw, 0) / (withData.length || 1);
@@ -45,8 +45,8 @@ function build() {
   for (const r of rows) r.value1000 = Math.max(10, Math.round(1000 * FORMULA.avgPriceShare * r.weight / meanW / 10) * 10);
 
   return Object.fromEntries(rows.map(r => [r.name, {
-    nick: r.nick ?? null, rp: r.rp, bestSeason: r.bestSeason ?? null, curRp: r.curRp ?? null,
-    tk: r.tk, rank: r.rank, play: r.play, noData: r.noData,
+    nick: r.nick ?? null, rp: r.rp, bestSeason: r.bestSeason ?? null, curRp: r.curRp ?? null, curSeason: r.season ? (r.season - 17) / 2 : null,   // dak.gg seasonId 41 → 시즌 12
+    tk: r.tk, rank: r.rank, play: r.play, noData: r.noData, most: r.most || [],
     placePts: +placePoints(r.rank).toFixed(2), perf: +r.perf.toFixed(2),
     power: r.power, tier: r.tier, value1000: r.value1000,
   }]));
