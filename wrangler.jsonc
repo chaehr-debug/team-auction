@@ -14,11 +14,13 @@
   "durable_objects": {
     "bindings": [
       { "name": "ROOMS", "class_name": "AuctionRoom" },
-      { "name": "IMAGES", "class_name": "ImageStore" }
+      { "name": "IMAGES", "class_name": "ImageStore" },
+      { "name": "STATS", "class_name": "StatsStore" }
     ]
   },
   "migrations": [
-    { "tag": "v1", "new_sqlite_classes": ["AuctionRoom", "ImageStore"] }
+    { "tag": "v1", "new_sqlite_classes": ["AuctionRoom", "ImageStore"] },
+    { "tag": "v2", "new_sqlite_classes": ["StatsStore"] }
   ],
   "observability": { "enabled": true }
 }

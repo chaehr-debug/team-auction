@@ -2,14 +2,17 @@
 //  - 정적 파일(public/)은 Workers Assets 가 서빙
 //  - 룸 1개 = Durable Object 1개 (AuctionRoom): WebSocket 연결 + 알람으로 타이머 판정
 //  - 프로필 사진 = Durable Object 저장소 (ImageStore)
+//  - 모의 경매 시세표 = 끝난 경매 결과를 모으는 Durable Object (StatsStore)
 import { DurableObject } from 'cloudflare:workers';
 import { roomCode, uid, createRoom, publicState, tick, nextDeadline, registerDirector, handleAction } from './logic.js';
 import { STREAMER_NAMES } from './roster.js';
 import STREAMER_IMAGES from './streamer-images.js';   // 자동 생성 (tools/build-streamers.js)
+import { RATINGS, RATINGS_DATE, FORMULA, PLACE_POINTS } from './ratings.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code.toUpperCase()));
 const imageStub = env => env.IMAGES.get(env.IMAGES.idFromName('images'));
+const statsStub = env => env.STATS.get(env.STATS.idFromName('stats'));
 
 /** 고정 스트리머 명단 + public/streamers/ 의 프로필 사진 경로 (없으면 null) */
 const streamerPool = () => STREAMER_NAMES.map(name => ({ name, image: STREAMER_IMAGES[name] || null }));
@@ -22,6 +25,14 @@ export default {
 
     // 고정 스트리머 명단 (룸 생성 화면 표시용)
     if (p === '/api/streamers') return json({ streamers: streamerPool() });
+
+    // 시세표: dak.gg 평가 + 모의 경매 낙찰가 집계
+    if (p === '/api/stats') {
+      return json({
+        streamers: streamerPool(), ratings: RATINGS, ratingsDate: RATINGS_DATE, formula: FORMULA, placePoints: PLACE_POINTS,
+        market: await statsStub(env).summary(STREAMER_NAMES),
+      });
+    }
 
     // 룸 생성 — 스트리머는 항상 고정 명단 (로컬 테스트에서만 .dev.vars 의 ALLOW_TEST_STREAMERS=1 + test:true 로 임의 명단 허용)
     if (p === '/api/rooms' && req.method === 'POST') {
@@ -104,11 +115,30 @@ export class AuctionRoom extends DurableObject {
 
   /** 저장 + 알람 재설정 + (선택) 전체 전송 */
   async commit(doBroadcast = true) {
+    await this.recordStats();
     await this.ctx.storage.put('room', this.room);
     const t = nextDeadline(this.room);
     if (t) await this.ctx.storage.setAlarm(t);
     else await this.ctx.storage.deleteAlarm();
     if (doBroadcast) this.broadcast();
+  }
+
+  /** 경매가 끝나면 결과를 시세표에 기록 (정정 후 다시 끝나면 덮어씀) */
+  async recordStats() {
+    const room = this.room;
+    if (room?.phase !== 'result' || !room.finishedAt || room.statsAt === room.finishedAt) return;
+    const names = new Set(STREAMER_NAMES);
+    const rows = room.streamers.filter(s => names.has(s.name)).map(s => {
+      const d = room.directors.find(x => x.id === s.teamId);
+      return { name: s.name, price: s.status === 'sold' ? s.price : null, bot: d?.bot ? 1 : 0 };
+    });
+    if (rows.length === STREAMER_NAMES.length) {
+      const bots = room.directors.filter(d => d.bot).length;
+      try {
+        await statsStub(this.env).record(room.code, room.finishedAt, room.settings.startPoints, room.directors.length - bots, bots, rows);
+      } catch (e) { console.error('시세표 기록 실패', e); }
+    }
+    room.statsAt = room.finishedAt;
   }
 
   broadcast() {
@@ -174,6 +204,41 @@ export class AuctionRoom extends DurableObject {
     const stillHere = this.ctx.getWebSockets().some(o => o !== ws && o.readyState === WebSocket.OPEN && o.deserializeAttachment()?.directorId === att.directorId);
     const d = this.room.directors.find(x => x.id === att.directorId);
     if (d && !stillHere && d.connected) { d.connected = false; await this.commit(); }
+  }
+}
+
+// ── 모의 경매 시세표 ─────────────────────────────────────
+// 경매 1판 = 스트리머 24행 (낙찰가 / 유찰 시 null, 산 감독이 봇인지)
+export class StatsStore extends DurableObject {
+  init() {
+    this.ctx.storage.sql.exec(`CREATE TABLE IF NOT EXISTS sales (
+      room TEXT, at INTEGER, name TEXT, price INTEGER, start INTEGER, bot INTEGER, humans INTEGER, bots INTEGER)`);
+  }
+  async record(room, at, start, humans, bots, rows) {
+    this.init();
+    const sql = this.ctx.storage.sql;
+    sql.exec('DELETE FROM sales WHERE room = ?', room);
+    for (const r of rows) sql.exec('INSERT INTO sales VALUES (?, ?, ?, ?, ?, ?, ?, ?)', room, at, r.name, r.price, start, r.bot, humans, bots);
+  }
+  /** 스트리머별 집계 — 가격은 시작 크레딧 1,000 기준으로 환산 */
+  async summary(names) {
+    this.init();
+    const sql = this.ctx.storage.sql;
+    const one = q => sql.exec(q).toArray()[0];
+    const rooms = one('SELECT COUNT(DISTINCT room) AS n, COUNT(DISTINCT CASE WHEN humans > 0 THEN room END) AS human, MAX(at) AS last FROM sales');
+    const agg = where => Object.fromEntries(sql.exec(`
+      SELECT name, COUNT(*) AS games, SUM(price IS NOT NULL) AS sold,
+        AVG(price * 1000.0 / start) AS avg, MAX(price * 1000.0 / start) AS max, MIN(price * 1000.0 / start) AS min
+      FROM sales ${where} GROUP BY name`).toArray().map(r => [r.name, {
+        games: r.games, sold: r.sold,
+        avg: r.avg == null ? null : Math.round(r.avg), max: r.max == null ? null : Math.round(r.max), min: r.min == null ? null : Math.round(r.min),
+      }]));
+    return {
+      rooms: rooms.n, humanRooms: rooms.human, lastAt: rooms.last,
+      all: agg(''),                      // 모든 경매 (봇 낙찰 포함)
+      human: agg('WHERE humans > 0 AND (price IS NULL OR bot = 0)'),   // 사람 감독이 낙찰한 것만 (사람이 있던 판)
+      names,
+    };
   }
 }
 

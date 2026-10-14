@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>모의 경매 시세표</title>
+  <link rel="stylesheet" href="/css/theme.css">
+  <link rel="stylesheet" href="/css/base.css">
+  <style>
+    body { overflow: auto; height: auto; }
+    .stats-page { max-width: 1280px; margin: 0 auto; padding: 32px 16px 60px; display: flex; flex-direction: column; gap: 18px; }
+    .stats-page h1 { font-size: 30px; }
+    .summary { display: flex; gap: 10px; flex-wrap: wrap; }
+    .summary .tile { padding: 12px 16px; border-radius: var(--radius-sm); background: var(--panel); border: 1px solid var(--line); min-width: 150px; }
+    .summary .tile b { display: block; font-size: 24px; font-family: var(--font-display); color: var(--accent-hi); }
+    .toolbar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+    .seg { display: inline-flex; border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; }
+    .seg button { border: 0; background: var(--inset); color: var(--muted); padding: 8px 14px; cursor: pointer; font: inherit; font-weight: 700; }
+    .seg button.on { background: var(--accent); color: var(--accent-ink, #fff); }
+    .table-wrap { overflow-x: auto; border-radius: var(--radius); border: 1px solid var(--line); background: var(--panel); }
+    table { width: 100%; border-collapse: collapse; font-size: 14px; white-space: nowrap; }
+    th, td { padding: 9px 12px; text-align: right; border-bottom: 1px solid var(--line); }
+    th { position: sticky; top: 0; background: var(--panel-2); color: var(--muted); font-weight: 700; cursor: pointer; user-select: none; }
+    th.sorted { color: var(--text); }
+    th:first-child, td:first-child, th:nth-child(2), td:nth-child(2) { text-align: left; }
+    tbody tr:hover { background: rgba(255, 255, 255, .03); }
+    .who { display: flex; align-items: center; gap: 10px; }
+    .who .nick { color: var(--muted); font-size: 12px; }
+    .who a { color: inherit; text-decoration: none; }
+    .who a:hover { text-decoration: underline; }
+    .bar { display: inline-block; height: 6px; border-radius: 3px; background: var(--accent); vertical-align: middle; margin-right: 8px; opacity: .7; }
+    .dim { color: var(--muted); }
+    .formula { font-size: 14px; line-height: 1.7; }
+    .formula code { background: var(--inset); padding: 1px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <main class="stats-page">
+    <div>
+      <h1>📊 모의 경매 시세표</h1>
+      <div class="muted">dak.gg 기록 기반 매물 평가 + 지금까지 끝난 모의 경매의 실제 낙찰가 (시작 크레딧 1,000 기준으로 환산)</div>
+    </div>
+    <div class="summary" id="summary"></div>
+    <div class="toolbar">
+      <span class="muted">낙찰가 집계</span>
+      <div class="seg" id="mode">
+        <button data-mode="all" class="on">전체 (봇 포함)</button>
+        <button data-mode="human">사람 감독 낙찰만</button>
+      </div>
+      <span class="muted" style="margin-left:auto;font-size:13px">열 이름을 누르면 정렬</span>
+    </div>
+    <div class="table-wrap"><table id="table"></table></div>
+    <section class="panel formula" id="formula"></section>
+    <a href="/" class="muted">← 경매 페이지로</a>
+  </main>
+  <script type="module" src="/js/stats.js"></script>
+</body>
+</html>

@@ -1,4 +1,5 @@
 // 경매 규칙 로직 — 플랫폼과 무관한 순수 함수 모음. 모든 판정은 서버(Durable Object)에서 이 파일로 한다.
+import { RATINGS, baseValue } from './ratings.js';
 
 // ── 화폐 용어 (화면 쪽은 public/js/config.js 의 CURRENCY 와 맞춰주세요) ──
 export const CURRENCY = { name: '크레딧', unit: 'CR' };
@@ -24,6 +25,7 @@ export function uid(bytes = 8) {
   return [...a].map(b => b.toString(16).padStart(2, '0')).join('');
 }
 const randInt = n => crypto.getRandomValues(new Uint32Array(1))[0] % n;
+const rand = () => crypto.getRandomValues(new Uint32Array(1))[0] / 2 ** 32;
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 export function roomCode() {
   const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -47,12 +49,18 @@ const minBidOf = s => Math.max(RULES.minBid, s.minBid || 0);
 
 /** 클라이언트로 보내는 공개 상태 (토큰·옵저버 키 제외) */
 export function publicState(room, now) {
-  const { observerKey, ...rest } = room;
+  const { observerKey, botPlan, ...rest } = room;   // botPlan: 봇의 이번 경매 최대 입찰액 (비공개)
   return { ...rest, directors: room.directors.map(({ token, ...d }) => d), serverNow: now, rules: RULES };
 }
 function log(room, now, type, text, extra = {}) {
   room.log.push({ id: uid(4), t: now, type, text, ...extra });
   if (room.log.length > RULES.logLimit) room.log.splice(0, room.log.length - RULES.logLimit);
+}
+
+// 화면에 보여줄 dak.gg 평가 요약 (명단에 없는 이름이면 null)
+function statsOf(name) {
+  const r = RATINGS[name];
+  return r ? { grade: r.grade, tier: r.tier, power: r.power, rp: r.rp, tk: r.tk, rank: r.rank, play: r.play, noData: r.noData } : null;
 }
 
 // ── 룸 생성 ──────────────────────────────────────────────
@@ -73,7 +81,7 @@ export function createRoom(b, code, now) {
     },
     phase: 'prep',            // prep → auction → rebid → result
     paused: false,
-    streamers: names.map(s => ({ id: uid(4), name: s.name, image: s.image, minBid: RULES.minBid, status: 'pending', teamId: null, price: null })),
+    streamers: names.map(s => ({ id: uid(4), name: s.name, image: s.image, minBid: RULES.minBid, status: 'pending', teamId: null, price: null, stats: statsOf(s.name) })),
     order: [],
     cursor: -1,
     unsoldQueue: [],
@@ -100,9 +108,74 @@ function startLot(room, now, streamerId) {
     durationMs: room.settings.timerSec * 1000,   // 타이머 바 표시용
     pausedRemainingMs: null,
     bidCount: 0,
+    botAt: null,                // 다음 봇 판단 시각
   };
   const tag = room.phase === 'rebid' ? '[유찰 경매] ' : '';
   log(room, now, 'lot', `${tag}${s.name} 경매 시작! (최소 ${fmtc(minBidOf(s))})`, { streamerId });
+  planBots(room, now);
+}
+
+// ── 봇 감독 ───────────────────────────────────────────────
+// 매 경매마다 봇별 '최대 입찰액'을 정해두고(평가 기준가 × 성향 × 운 × 남은 돈 여유),
+// 1~3초 간격으로 그 안에서 조금씩 올려 입찰한다. 사람이 입찰하면 다시 판단한다.
+function botWillingness(room, b, s) {
+  const slotsLeft = room.settings.teamSize - b.roster.length;
+  const fair = room.settings.startPoints / room.settings.teamSize;               // 한 자리에 평균적으로 쓸 돈
+  const rich = clamp(b.points / slotsLeft / fair, 0.6, 2);                        // 남은 돈이 넉넉하면 더 공격적
+  let w = baseValue(s.name, room.settings.startPoints) * (b.style || 1) * (0.85 + rand() * 0.3) * rich;
+  if (room.phase === 'rebid') w = Math.max(w * 0.8, minBidOf(s));                 // 유찰 경매: 남은 자리는 채운다
+  return Math.min(maxBidOf(room, b), Math.floor(w / RULES.bidStep) * RULES.bidStep);
+}
+function planBots(room, now) {
+  const s = getStreamer(room, room.current.streamerId);
+  const bots = room.directors.filter(d => d.bot && !isFull(room, d));
+  room.botPlan = bots.length ? { streamerId: s.id, will: Object.fromEntries(bots.map(b => [b.id, botWillingness(room, b, s)])) } : null;
+  scheduleBots(room, now);
+}
+function scheduleBots(room, now) {
+  const c = room.current;
+  if (!c) return;
+  c.botAt = room.botPlan && c.status === 'bidding'
+    ? now + Math.round(Math.min(1200 + rand() * 2300, (c.endsAt - now) * 0.75)) : null;
+}
+function botAct(room, now) {
+  const c = room.current, plan = room.botPlan;
+  c.botAt = null;
+  if (!plan || plan.streamerId !== c.streamerId) return;
+  const s = getStreamer(room, c.streamerId);
+  const next = c.highBid === null ? minBidOf(s) : c.highBid + RULES.bidStep;
+  const cands = room.directors.filter(d => d.bot && !isFull(room, d) && c.highBidderId !== d.id && (plan.will[d.id] ?? 0) >= next);
+  if (!cands.length) return;   // 이 가격이면 봇들은 포기 (사람이 입찰하면 다시 판단)
+  const b = cands[randInt(cands.length)];
+  const extra = Math.floor((plan.will[b.id] - next) * (0.1 + rand() * 0.3) / RULES.bidStep) * RULES.bidStep;
+  placeBid(room, now, b, Math.min(next + extra, plan.will[b.id]));
+}
+
+/** 입찰 (사람·봇 공용). 오류 메시지 또는 null */
+function placeBid(room, now, director, amount) {
+  const c = room.current;
+  if (!c || c.status !== 'bidding' || !running(room)) return '입찰 가능한 시간이 아닙니다.';
+  if (room.paused) return '경매가 일시 정지 중입니다.';
+  if (now >= c.endsAt) return '입찰 시간이 종료되었습니다.';
+  if (isFull(room, director)) return `이미 ${room.settings.teamSize}명을 영입했습니다.`;
+  if (c.highBidderId === director.id) return '이미 최고 입찰자입니다.';
+  amount = Math.round(+amount);
+  const s = getStreamer(room, c.streamerId);
+  if (!Number.isFinite(amount) || amount <= 0 || amount % RULES.bidStep) return `${fmtc(RULES.bidStep)} 단위로 입찰하세요.`;
+  if (amount < minBidOf(s)) return `최소 입찰가는 ${fmtc(minBidOf(s))} 입니다.`;
+  if (c.highBid !== null && amount <= c.highBid) return `현재 최고가(${fmtc(c.highBid)})보다 높게 입찰하세요.`;
+  if (amount > director.points) return `보유 ${CURRENCY.name}이 부족합니다.`;
+  if (amount > maxBidOf(room, director))
+    return `남은 팀원 자리를 위해 ${fmtc(reserveFor(room, director))}을 남겨야 합니다. (최대 ${fmtc(maxBidOf(room, director))})`;
+
+  c.highBid = amount;
+  c.highBidderId = director.id;   // 이전 최고 입찰자의 보류 크레딧은 자동 반환 (보류 = 최고입찰액)
+  c.bidCount++;
+  c.endsAt = now + room.settings.bidResetSec * 1000;
+  c.durationMs = room.settings.bidResetSec * 1000;
+  log(room, now, 'bid', `${director.name}: ${fmtc(amount)}`, { directorId: director.id, amount, streamerId: s.id });
+  scheduleBots(room, now);
+  return null;
 }
 
 function resolveLot(room, now) {
@@ -165,6 +238,8 @@ function finish(room, now) {
   room.phase = 'result';
   room.current = null;
   room.paused = false;
+  room.botPlan = null;
+  room.finishedAt = now;   // 시세표 기록용 (worker 가 이 값으로 중복 기록을 막음)
   const left = room.streamers.filter(s => s.status !== 'sold');
   left.forEach(s => (s.status = 'unassigned'));
   log(room, now, 'system', left.length ? `경매 종료 — 미배정 ${left.length}명` : '경매 종료 — 모든 스트리머 배정 완료!');
@@ -173,9 +248,13 @@ function finish(room, now) {
 /** 타이머 만료 처리. 상태가 바뀌었으면 true */
 export function tick(room, now) {
   let changed = false;
-  while (room && running(room) && !room.paused && room.current && now >= room.current.endsAt) {
-    if (room.current.status === 'bidding') resolveLot(room, now);
-    else nextLot(room, now);
+  while (room && running(room) && !room.paused && room.current) {
+    const c = room.current;
+    if (now >= c.endsAt) {
+      if (c.status === 'bidding') resolveLot(room, now);
+      else nextLot(room, now);
+    } else if (c.status === 'bidding' && c.botAt && now >= c.botAt) botAct(room, now);
+    else break;
     changed = true;
   }
   return changed;
@@ -183,7 +262,9 @@ export function tick(room, now) {
 
 /** 다음으로 깨어나야 할 시각 (알람용) */
 export function nextDeadline(room) {
-  return room && running(room) && !room.paused && room.current ? room.current.endsAt : null;
+  const c = room && running(room) && !room.paused && room.current;
+  if (!c) return null;
+  return c.status === 'bidding' && c.botAt ? Math.min(c.endsAt, c.botAt) : c.endsAt;
 }
 
 // ── 감독 등록 ─────────────────────────────────────────────
@@ -215,6 +296,13 @@ function cleanCam(v) {
     const u = new URL(v);
     return u.protocol === 'https:' && v.length <= 500 ? u.toString() : undefined;
   } catch { return undefined; }
+}
+
+/** 낙찰 되돌리기: 크레딧 환급 · 팀에서 제외 */
+function undoSale(room, s) {
+  const d = getDirector(room, s.teamId);
+  if (d) { d.points += s.price; d.roster = d.roster.filter(id => id !== s.id); }
+  s.status = 'unsold'; s.teamId = null; s.price = null;
 }
 
 const OBSERVER_ACTIONS = {
@@ -256,6 +344,59 @@ const OBSERVER_ACTIONS = {
     room.directors.forEach((x, i) => (x.slot = i));
     log(room, now, 'system', `${d.name} 감독 퇴장 처리`);
   },
+  // 빈 감독 자리를 봇으로 채움 (모의 경매용)
+  'prep:fillBots'(room, now) {
+    if (room.phase !== 'prep') return '준비 단계에서만 가능합니다.';
+    const n = RULES.maxDirectors - room.directors.length;
+    if (n <= 0) return '빈 감독 자리가 없습니다.';
+    for (let k = 1, added = 0; added < n; k++) {
+      const name = `봇 감독 ${k}`;
+      if (room.directors.some(d => d.name === name)) continue;
+      room.directors.push({
+        id: uid(4), token: uid(12), name, image: null, slot: room.directors.length,
+        points: room.settings.startPoints, roster: [], connected: true, cam: null,
+        bot: true, style: +(0.85 + rand() * 0.35).toFixed(2),   // style: 봇 성향 (높을수록 비싸게 삼)
+      });
+      added++;
+    }
+    log(room, now, 'system', `빈 자리 봇 감독 ${n}명 추가`);
+  },
+  // 정정: 현재 경매(입찰 중이거나 결과 표시 중)를 처음부터 다시
+  'lot:restart'(room, now) {
+    const c = room.current;
+    if (!running(room) || !c) return '진행 중인 경매가 없습니다.';
+    const s = getStreamer(room, c.streamerId);
+    if (c.status === 'reveal') {
+      if (c.result === 'sold') { undoSale(room, s); if (room.phase === 'rebid') room.passSold--; }
+      else room.passUnsold = room.passUnsold.filter(id => id !== s.id);
+    }
+    s.status = room.phase === 'rebid' ? 'unsold' : 'pending';
+    log(room, now, 'system', `옵저버 정정: ${s.name} 다시 경매`);
+    startLot(room, now, s.id);
+    if (room.paused) room.current.pausedRemainingMs = room.current.durationMs;
+  },
+  // 정정: 이미 끝난 낙찰 취소 → 크레딧 환급 후 유찰 경매에서 다시 (경매 종료 후면 유찰 경매를 다시 연다)
+  'sale:revoke'(room, now, { id }) {
+    const s = getStreamer(room, id);
+    if (!s || s.status !== 'sold') return '낙찰된 스트리머가 아닙니다.';
+    if (running(room) && room.current?.streamerId === id) return OBSERVER_ACTIONS['lot:restart'](room, now);
+    if (!running(room) && room.phase !== 'result') return '경매 중에만 가능합니다.';
+    const d = getDirector(room, s.teamId), price = s.price;
+    undoSale(room, s);
+    log(room, now, 'system', `옵저버 정정: ${s.name} 낙찰 취소 (${d?.name ?? '?'} 팀 ${fmtc(price)} 환급) — 유찰 경매에서 다시`);
+    if (room.phase === 'auction') room.passUnsold.push(id);
+    else if (room.phase === 'rebid') room.unsoldQueue.push(id);
+    else {
+      // 경매 종료 후: 취소한 스트리머 + 미배정 스트리머로 유찰 경매 재개
+      const left = room.streamers.filter(x => x.status === 'unassigned');
+      left.forEach(x => (x.status = 'unsold'));
+      room.phase = 'rebid';
+      room.paused = false;
+      room.unsoldQueue = [id, ...left.map(x => x.id)];
+      room.passUnsold = []; room.passSold = 0; room.cursor = 0;
+      startLot(room, now, id);
+    }
+  },
   'auction:start'(room, now) {
     if (room.phase !== 'prep') return '이미 시작되었습니다.';
     if (!room.directors.length) return '입장한 감독이 없습니다.';
@@ -278,6 +419,7 @@ const OBSERVER_ACTIONS = {
     if (room.current) {
       room.current.endsAt = now + (room.current.pausedRemainingMs ?? 0);
       room.current.pausedRemainingMs = null;
+      scheduleBots(room, now);
     }
     log(room, now, 'system', '경매 재진행');
   },
@@ -294,27 +436,7 @@ const DIRECTOR_ACTIONS = {
     }
   },
   bid(room, now, { amount }, director) {
-    const c = room.current;
-    if (!c || c.status !== 'bidding' || !running(room)) return '입찰 가능한 시간이 아닙니다.';
-    if (room.paused) return '경매가 일시 정지 중입니다.';
-    if (now >= c.endsAt) return '입찰 시간이 종료되었습니다.';
-    if (isFull(room, director)) return `이미 ${room.settings.teamSize}명을 영입했습니다.`;
-    if (c.highBidderId === director.id) return '이미 최고 입찰자입니다.';
-    amount = Math.round(+amount);
-    const s = getStreamer(room, c.streamerId);
-    if (!Number.isFinite(amount) || amount <= 0 || amount % RULES.bidStep) return `${fmtc(RULES.bidStep)} 단위로 입찰하세요.`;
-    if (amount < minBidOf(s)) return `최소 입찰가는 ${fmtc(minBidOf(s))} 입니다.`;
-    if (c.highBid !== null && amount <= c.highBid) return `현재 최고가(${fmtc(c.highBid)})보다 높게 입찰하세요.`;
-    if (amount > director.points) return `보유 ${CURRENCY.name}이 부족합니다.`;
-    if (amount > maxBidOf(room, director))
-      return `남은 팀원 자리를 위해 ${fmtc(reserveFor(room, director))}을 남겨야 합니다. (최대 ${fmtc(maxBidOf(room, director))})`;
-
-    c.highBid = amount;
-    c.highBidderId = director.id;   // 이전 최고 입찰자의 보류 크레딧은 자동 반환 (보류 = 최고입찰액)
-    c.bidCount++;
-    c.endsAt = now + room.settings.bidResetSec * 1000;
-    c.durationMs = room.settings.bidResetSec * 1000;
-    log(room, now, 'bid', `${director.name}: ${fmtc(amount)}`, { directorId: director.id, amount, streamerId: s.id });
+    return placeBid(room, now, director, amount);
   },
 };
 

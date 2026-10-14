@@ -156,6 +156,20 @@ const ACTIONS = {
     if (f) send('director:update', { image: await uploadImage(f) });
   },
   kick: el => confirm('이 감독을 내보낼까요?') && send('prep:kick', { id: el.dataset.id }),
+  fillBots: () => send('prep:fillBots'),
+  // ── 옵저버 정정 ──
+  restartLot: () => {
+    const s = state.streamers.find(x => x.id === state.current?.streamerId);
+    const c = state.current;
+    const what = c?.status === 'reveal' ? (c.result === 'sold' ? '낙찰을 취소하고 ' : '유찰을 취소하고 ') : '';
+    if (s && confirm(`${s.name} 경매를 ${what}처음부터 다시 진행할까요?`)) send('lot:restart');
+  },
+  revoke: el => {
+    const s = state.streamers.find(x => x.id === el.dataset.id);
+    const dir = state.directors.find(x => x.id === s?.teamId);
+    if (!s || !confirm(`${s.name} 낙찰을 취소할까요?\n${dir?.name ?? ''} 팀에 ${s.price} 크레딧을 돌려주고, 유찰 경매에서 다시 경매합니다.`)) return;
+    send('sale:revoke', { id: s.id });
+  },
   start: () => {
     const n = state.directors.length;
     if (n < state.rules.maxDirectors && !confirm(`감독이 ${n}명입니다. 그래도 경매를 시작할까요?`)) return;

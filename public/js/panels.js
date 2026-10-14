@@ -27,6 +27,9 @@ const header = {
         ? `<button class="btn btn-primary" data-action="resume">▶ 경매 재진행</button>`
         : `<button class="btn" data-action="pause">⏸ 경매 일시 정지</button>`)
       : '';
+    const fixBtn = role === 'observer' && running && state.current
+      ? `<button class="btn" data-action="restartLot" title="현재 스트리머 경매를 처음부터 다시 (결과 표시 중이면 낙찰/유찰 취소)">↺ 현재 경매 다시</button>` : '';
+    const statsLink = state.phase === 'result' ? `<a class="btn" href="/stats" target="_blank" rel="noopener">📊 모의 경매 시세표</a>` : '';
     return `
       <div class="row" style="gap:14px">
         <h1>${esc(state.title)}</h1>${badges}
@@ -34,7 +37,7 @@ const header = {
       <div class="row" style="gap:14px">
         <span class="muted">시작 <span class="num">${cr(state.settings.startPoints)}</span> · 타이머 <span class="num">${state.settings.timerSec}</span>초 · 재입찰 <span class="num">${state.settings.bidResetSec}</span>초</span>
         <div class="phase-steps">${steps}</div>
-        ${pauseBtn}
+        ${fixBtn}${pauseBtn}${statsLink}
       </div>`;
   },
 };
@@ -140,14 +143,18 @@ const upcoming = {
 // ── 감독 목록 / 실시간 크레딧 ──
 // 카드 = [정보: 아바타·이름·크레딧] + [영입한 스트리머 칸 3개]
 // 감독 패널에서는 한 줄에 한 명(.rows), '내 팀' 패널에서는 세로 카드로 표시
-function directorCard(dir, { state, d }, { manage = false } = {}) {
+/** 옵저버 정정 — 낙찰 취소 버튼 (경매 중 · 경매 종료 후) */
+const revokeBtn = (state, role, s) => role === 'observer' && ['auction', 'rebid', 'result'].includes(state.phase)
+  ? `<button class="slot-x" data-action="revoke" data-id="${s.id}" title="${esc(s.name)} 낙찰 취소 (크레딧 환급 후 유찰 경매에서 다시)">✕</button>` : '';
+
+function directorCard(dir, { state, d, role }, { manage = false } = {}) {
   const c = state.current;
   const leading = c && c.highBidderId === dir.id;
   const held = d.held(dir);
   const slots = Array.from({ length: state.settings.teamSize }, (_, i) => {
     const s = d.byId[dir.roster[i]];
     return s
-      ? `<div class="roster-slot filled">${avatar(s, { square: true })}<span class="sname">${esc(s.name)}</span></div>`
+      ? `<div class="roster-slot filled">${avatar(s, { square: true })}<span class="sname">${esc(s.name)}</span>${manage ? revokeBtn(state, role, s) : ''}</div>`
       : `<div class="roster-slot"></div>`;
   }).join('');
   const cls = ['director-card', leading && 'is-leading', d.isFull(dir) && 'is-full', !dir.connected && 'is-off'].filter(Boolean).join(' ');
@@ -157,8 +164,9 @@ function directorCard(dir, { state, d }, { manage = false } = {}) {
     <div class="info">
       <div class="top">${avatar(dir, { size: 34, ring: teamColor(dir) })}
         <span class="dname">${esc(dir.name)}</span>
+        ${dir.bot ? '<span class="badge" title="자동 입찰 봇">🤖 BOT</span>' : ''}
         ${!dir.connected ? '<span class="badge">OFF</span>' : ''}
-        ${manage ? `<button class="badge cam-btn ${dir.cam ? 'cyan' : 'unsold'}" data-action="setCam" data-id="${dir.id}" title="${esc(dir.cam || '캠 미등록')} — 클릭해서 등록/수정">CAM</button>` : ''}
+        ${manage && !dir.bot ? `<button class="badge cam-btn ${dir.cam ? 'cyan' : 'unsold'}" data-action="setCam" data-id="${dir.id}" title="${esc(dir.cam || '캠 미등록')} — 클릭해서 등록/수정">CAM</button>` : ''}
         ${tools}
       </div>
       <div class="row"><span class="points num">${cr(d.available(dir))}</span>
@@ -262,9 +270,17 @@ const cam = {
     el.querySelector('.cam-label').innerHTML = leader
       ? `${avatar(leader, { size: 30, ring: teamColor(leader) })}<span>${esc(leader.name)}</span><span class="amt">${cr(c.highBid)}</span>` : '';
     el.querySelector('.cam-empty').textContent =
-      !c ? '' : !leader ? '입찰 대기 중' : !leader.cam ? `${leader.name} 감독 캠 미등록` : '';
+      !c ? '' : !leader ? '입찰 대기 중' : leader.bot ? `🤖 ${leader.name} 입찰 중` : !leader.cam ? `${leader.name} 감독 캠 미등록` : '';
   },
 };
+
+/** dak.gg 평가 요약 (등급 · RP · 평균 TK · 평균 순위) */
+export function statsLine(s) {
+  const st = s?.stats;
+  if (!st || st.noData) return '';
+  return `<div class="lot-stats"><span class="grade grade-${st.grade}">${st.grade}</span>
+    RP <b class="num">${fmt(st.rp)}</b> · 평균 TK <b class="num">${st.tk.toFixed(2)}</b> · 평균 순위 <b class="num">${st.rank.toFixed(2)}</b></div>`;
+}
 
 // ── 현재 경매 대상 ──
 const lot = {
@@ -285,6 +301,7 @@ const lot = {
       <div class="status">${status}</div>
       ${avatar(s, { square: true, ring: leader ? teamColor(leader) : undefined })}
       <div class="lot-name">${esc(s.name)}</div>
+      ${statsLine(s)}
       <div class="lot-meta">최소 입찰 <span class="num">${cr(d.minBidOf(s))}</span> · 입찰 <span class="num">${c.bidCount}</span>회</div>
       <div class="price">${c.highBid !== null ? cr(c.highBid) : '–'}</div>
       <div class="leader" style="color:${teamColor(leader)}">${leader ? `${esc(leader.name)} 최고 입찰` : '입찰 대기'}</div>
@@ -354,8 +371,10 @@ const controls = {
   render({ state }) {
     const cams = state.directors.filter(x => x.cam).length;
     return panel('진행', `
-      <div class="row wrap"><button class="btn btn-primary btn-lg" data-action="start">▶ 경매 시작</button></div>
-      <div class="muted">감독 <span class="num">${state.directors.length} / ${state.rules.maxDirectors}</span> · 캠 등록 <span class="num">${cams} / ${state.directors.length}</span></div>`);
+      <div class="row wrap"><button class="btn btn-primary btn-lg" data-action="start">▶ 경매 시작</button>
+        ${state.directors.length < state.rules.maxDirectors ? `<button class="btn" data-action="fillBots" title="빈 감독 자리를 자동 입찰 봇으로 채웁니다 (dak.gg 기록 기반 평가)">🤖 빈 자리 봇으로 채우기</button>` : ''}</div>
+      <div class="muted">감독 <span class="num">${state.directors.length} / ${state.rules.maxDirectors}</span> · 캠 등록 <span class="num">${cams} / ${state.directors.length}</span>
+        ${state.directors.some(x => x.bot) ? ` · 봇 <span class="num">${state.directors.filter(x => x.bot).length}</span>명 (✕ 로 빼기)` : ''}</div>`);
   },
 };
 
@@ -392,12 +411,12 @@ const log = {
 
 // ── 결과: 팀 구성 ──
 const teams = {
-  render({ state, d }) {
+  render({ state, d, role }) {
     const cards = state.directors.map(dir => {
       const members = Array.from({ length: state.settings.teamSize }, (_, i) => {
         const s = d.byId[dir.roster[i]];
         return s
-          ? `<div class="team-member">${avatar(s, { square: true })}<span class="mname">${esc(s.name)}</span><span class="price num">${cr(s.price)}</span></div>`
+          ? `<div class="team-member">${avatar(s, { square: true })}<span class="mname">${esc(s.name)}</span><span class="price num">${cr(s.price)}</span>${revokeBtn(state, role, s)}</div>`
           : `<div class="team-member empty">빈 자리</div>`;
       }).join('');
       const spent = dir.roster.reduce((a, id) => a + (d.byId[id]?.price || 0), 0);

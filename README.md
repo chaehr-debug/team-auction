@@ -53,6 +53,17 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 
 현재 경매 대상(`lot`) 패널은 패널 크기에 맞춰 글자·이미지가 같이 커지고 작아지므로, 배치를 바꿔도 다시 손볼 필요가 적습니다.
 
+## 봇 감독 · 매물 평가 · 시세표
+- 준비 단계 `🤖 빈 자리 봇으로 채우기`: 빈 감독 자리를 자동 입찰 봇으로 채움 (✕ 로 빼기 가능)
+- 봇은 dak.gg 기록 기반 **평가 기준가** × 성향 × 운 × 남은 크레딧 여유 만큼까지 1~3초 간격으로 입찰
+- 평가 공식: `src/ratings.js` (라운드 기대점수 = 평균 TK + 순위 점수, 전력 = RP + 150 × (기대점수 − 평균))
+- 기록 갱신: `node tools/fetch-ratings.js` → `src/ratings-data.js` (dak.gg 랭크 스쿼드, 인게임 닉네임은 `src/roster.js`)
+- 시세표 `/stats`: 평가표 + 끝난 모의 경매 낙찰가 집계 (시작 크레딧 1,000 기준 환산, 봇 포함/사람만 전환). 저장소는 StatsStore Durable Object
+
+## 옵저버 정정
+- `↺ 현재 경매 다시` (헤더): 현재 스트리머를 처음부터 다시 — 결과 표시 중이면 낙찰/유찰 취소 후 재경매
+- 감독 카드·최종 팀의 스트리머 `✕`: 낙찰 취소 → 크레딧 환급 후 유찰 경매에서 다시 (경매 종료 후면 유찰 경매 재개)
+
 ## 스트리머 명단 · 프로필 사진
 - 명단은 고정 24명: `src/roster.js` (모든 룸이 이 명단으로 만들어지고, 기본 경매 순서도 이 순서)
 - 사진: `public/streamers/` 에 `스트리머명.확장자` (예: `플라이.png`, `이로나묭 치카.png`)로 넣고 `npm run deploy` → 이후 새로 만드는 모든 룸에 적용
@@ -72,6 +83,8 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 ## 테스트
 ```bash
 BASE=http://localhost:8787 node test/sim.js   # 규칙 자동 검증 (npm run dev 실행 중, .dev.vars 의 ALLOW_TEST_STREAMERS=1 필요 — 로컬 전용)
+BASE=http://localhost:8787 node test/bots.js       # 봇 감독 · 옵저버 정정 검증
+BASE=http://localhost:8787 node test/bots-full.js [판수]  # 봇 8명으로 24명 한 판 끝까지 (시세표 기록 확인)
 BASE=http://localhost:8787 node test/demo.js  # 감독 8명 · 스트리머 24명 데모 룸
 ```
 
