@@ -274,12 +274,11 @@ const cam = {
   },
 };
 
-/** dak.gg 평가 요약 (등급 · RP · 평균 TK · 평균 순위) */
+/** dak.gg 평가 요약 (최고 RP · 평균 TK · 평균 순위) */
 export function statsLine(s) {
   const st = s?.stats;
   if (!st || st.noData) return '';
-  return `<div class="lot-stats"><span class="grade grade-${st.grade}">${st.grade}</span>
-    RP <b class="num">${fmt(st.rp)}</b> · 평균 TK <b class="num">${st.tk.toFixed(2)}</b> · 평균 순위 <b class="num">${st.rank.toFixed(2)}</b></div>`;
+  return `<div class="lot-stats">최고 RP <b class="num">${fmt(st.rp)}</b>${st.bestSeason ? ` <span class="muted">(시즌 ${st.bestSeason})</span>` : ''} · 평균 TK <b class="num">${st.tk.toFixed(2)}</b> · 평균 순위 <b class="num">${st.rank.toFixed(2)}</b></div>`;
 }
 
 // ── 현재 경매 대상 ──

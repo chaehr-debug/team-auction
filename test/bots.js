@@ -23,7 +23,7 @@ const assert = (c, m) => { if (!c) { console.error('❌', m); process.exitCode =
   const cur = () => state.current && state.streamers.find(s => s.id === state.current.streamerId)?.name;
   await until(() => state?.directors.length === 1);
 
-  assert(state.streamers.find(s => s.name === '플라이').stats?.grade, '스트리머에 dak.gg 평가 첨부');
+  assert(state.streamers.find(s => s.name === '플라이').stats?.power, '스트리머에 dak.gg 평가 첨부');
   assert((await H.call('prep:fillBots')).ok === false, '감독은 봇 추가 불가');
   assert((await obs.call('prep:fillBots')).ok, '옵저버 봇 채우기');
   assert(state.directors.length === 8 && state.directors.filter(d => d.bot).length === 7, '빈 자리 7개를 봇으로 채움');

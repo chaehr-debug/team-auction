@@ -60,7 +60,7 @@ function log(room, now, type, text, extra = {}) {
 // 화면에 보여줄 dak.gg 평가 요약 (명단에 없는 이름이면 null)
 function statsOf(name) {
   const r = RATINGS[name];
-  return r ? { grade: r.grade, tier: r.tier, power: r.power, rp: r.rp, tk: r.tk, rank: r.rank, play: r.play, noData: r.noData } : null;
+  return r ? { tier: r.tier, power: r.power, rp: r.rp, bestSeason: r.bestSeason, tk: r.tk, rank: r.rank, play: r.play, noData: r.noData } : null;
 }
 
 // ── 룸 생성 ──────────────────────────────────────────────
@@ -116,15 +116,44 @@ function startLot(room, now, streamerId) {
 }
 
 // ── 봇 감독 ───────────────────────────────────────────────
-// 매 경매마다 봇별 '최대 입찰액'을 정해두고(평가 기준가 × 성향 × 운 × 남은 돈 여유),
-// 1~3초 간격으로 그 안에서 조금씩 올려 입찰한다. 사람이 입찰하면 다시 판단한다.
+// 매 경매마다 봇별 '최대 입찰액'을 정해두고, 1~3초 간격으로 그 안에서 조금씩 올려 입찰한다.
+// 사람이 입찰하면 다시 판단한다.
+//  1) 시세 = 아직 남은 크레딧 총합 × (이 스트리머 평가 가치 ÷ 남은 스트리머 평가 가치 합)
+//     → 크레딧이 많이 남을수록 시세가 올라가 남은 크레딧을 끝까지 쓴다 (경매가 끝나면 남은 크레딧은 쓸모없음)
+//  2) 유찰 작전 (본 경매): 뒤에 나올 더 강한 스트리머로 남은 자리를 충분히 채울 수 있으면
+//     지금 나온 약한 스트리머는 건너뛰고 크레딧을 아낀다 → 유찰된 스트리머는 유찰 경매에서 싸게 채운다
+//  3) 마지막 한 자리: 남은 매물 중 상위권이면 남은 크레딧을 몰아서 쓴다
+const BOT = { passLine: [0.35, 0.7], bargainChance: 0.2, lastSlotAllIn: 2 };   // bargainChance: 건너뛸 때 최소가에 줍는 확률 (봇 전체 합)
+const botValue = (room, s) => baseValue(s.name, room.settings.startPoints);
+const bots = room => room.directors.filter(d => d.bot && !isFull(room, d));
 function botWillingness(room, b, s) {
   const slotsLeft = room.settings.teamSize - b.roster.length;
-  const fair = room.settings.startPoints / room.settings.teamSize;               // 한 자리에 평균적으로 쓸 돈
-  const rich = clamp(b.points / slotsLeft / fair, 0.6, 2);                        // 남은 돈이 넉넉하면 더 공격적
-  let w = baseValue(s.name, room.settings.startPoints) * (b.style || 1) * (0.85 + rand() * 0.3) * rich;
-  if (room.phase === 'rebid') w = Math.max(w * 0.8, minBidOf(s));                 // 유찰 경매: 남은 자리는 채운다
-  return Math.min(maxBidOf(room, b), Math.floor(w / RULES.bidStep) * RULES.bidStep);
+  const maxBid = maxBidOf(room, b);
+  const open = room.directors.filter(d => !isFull(room, d));
+  const openSlots = open.reduce((n, d) => n + room.settings.teamSize - d.roster.length, 0);
+  const money = open.reduce((n, d) => n + d.points, 0);
+  const left = room.streamers.filter(x => x.status !== 'sold');                   // 현재 매물 포함 (유찰자는 유찰 경매에 다시 나옴)
+  const v = botValue(room, s);
+  const market = money * v / (left.reduce((n, x) => n + botValue(room, x), 0) || 1);
+  const rich = clamp((b.points / slotsLeft) / (money / openSlots), 0.5, 2.5);      // 남들보다 돈이 넉넉하면 그만큼 더 공격적
+  let w = market * rich * (b.style || 1) * (0.85 + rand() * 0.3);
+
+  if (room.phase === 'auction') {
+    // 뒤에 나올, 지금 매물보다 강한 스트리머 수 ÷ 전체 빈자리. 높으면 지금 매물은 유찰 경매까지 남을 가능성이 큼
+    const better = room.order.slice(room.cursor + 1).map(id => getStreamer(room, id))
+      .filter(x => x.status === 'pending' && botValue(room, x) > v);
+    const passLine = BOT.passLine[0] + rand() * (BOT.passLine[1] - BOT.passLine[0]) + ((b.style || 1) - 1) * 0.5;   // 공격적인 봇일수록 덜 건너뜀
+    // 돈이 넉넉한 봇은 더 강한 스트리머가 충분히 남아 있으면 약한 매물로 자리를 채우지 않는다 (크레딧을 남기지 않도록)
+    const saveForBetter = rich >= 1.3 && better.length >= slotsLeft * 3 && market < (b.points / slotsLeft) * 0.5;
+    if (better.length / openSlots >= passLine || saveForBetter)
+      return rand() < BOT.bargainChance / bots(room).length ? minBidOf(s) : 0;     // 건너뜀 (가끔 최소가에 줍기만)
+  }
+  if (slotsLeft === 1) {
+    const stronger = left.filter(x => botValue(room, x) > v).length;
+    w = Math.max(w, maxBid * clamp(1 - BOT.lastSlotAllIn * stronger / left.length, 0, 1));
+  }
+  if (room.phase === 'rebid') w = Math.max(w, minBidOf(s));                       // 유찰 경매: 남은 자리는 채운다
+  return Math.min(maxBid, Math.floor(w / RULES.bidStep) * RULES.bidStep);
 }
 function planBots(room, now) {
   const s = getStreamer(room, room.current.streamerId);
