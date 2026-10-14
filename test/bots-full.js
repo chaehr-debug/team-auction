@@ -22,14 +22,23 @@ function tally(st) {
 
 async function play(g) {
   const r = await createRoom({ title: `봇 모의 경매 ${g}`, timerSec: 5, startPoints: 1000 });
-  const obs = await client(r.code); let st;
-  obs.on('state', s => (st = s));
-  await obs.call('join', { code: r.code, key: r.observerKey });
+  let st, obs, lastAt = Date.now();
+  // 연결이 끊기면 다시 붙어서 옵저버로 재입장 (끊긴 채로 끝을 못 보고 멈추는 것 방지)
+  const connect = async () => {
+    obs = await client(r.code);
+    obs.on('state', s => { st = s; lastAt = Date.now(); });
+    await obs.call('join', { code: r.code, key: r.observerKey });
+  };
+  await connect();
   await obs.call('prep:fillBots');
   await obs.call('prep:shuffle');
   const t0 = Date.now();
   await obs.call('auction:start');
-  while (st?.phase !== 'result') await wait(500);
+  while (st?.phase !== 'result') {
+    await wait(500);
+    const silent = Date.now() - lastAt > 60000;   // 봇이 1~3초마다 움직이므로 1분 동안 소식이 없으면 끊긴 것
+    if (obs.closed || silent) { console.log(`[${g}] 연결 끊김 → 재접속`); obs.close(); lastAt = Date.now(); await connect(); }
+  }
   const sec = Math.round((Date.now() - t0) / 1000);
   const sold = st.streamers.filter(s => s.status === 'sold');
   const left = st.directors.map(d => `${d.personaLabel ?? d.name} ${d.points}`);

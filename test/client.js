@@ -11,7 +11,9 @@ export function client(code) {
       on: (ev, fn) => (handlers[ev] = fn),
       call: (ev, payload) => new Promise(res => { const id = ++seq; pending.set(id, res); ws.send(JSON.stringify({ id, ev, payload })); }),
       close: () => ws.close(),
+      closed: false,
     };
+    ws.onclose = () => { c.closed = true; };
     ws.onmessage = e => {
       const m = JSON.parse(e.data);
       if (m.id != null) { pending.get(m.id)?.(m.res); pending.delete(m.id); } else handlers[m.ev]?.(m.data);
