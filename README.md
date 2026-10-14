@@ -55,7 +55,8 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 
 ## 봇 감독 · 매물 평가 · 시세표
 - 준비 단계 `🤖 빈 자리 봇으로 채우기`: 빈 감독 자리를 자동 입찰 봇으로 채움 (✕ 로 빼기 가능)
-- 봇은 dak.gg 기록 기반 **평가 기준가** × 성향 × 운 × 남은 크레딧 여유 만큼까지 1~3초 간격으로 입찰
+- 봇은 dak.gg 기록 기반 **평가 기준가** × 공격성 × 운 × 남은 크레딧 여유 만큼까지 1~3초 간격으로 입찰
+- 봇 성향(`src/ratings.js` PERSONAS): 종합형 · RP 우선 · 승률 우선(평균 순위) · 킬 우선(평균 TK) · 현재 폼 우선(이번 시즌 RP) — 성향마다 기준가를 따로 계산해 서로 다른 스트리머를 노림
 - 평가 공식: `src/ratings.js` (라운드 기대점수 = 평균 TK + 순위 점수, 전력 = 시즌 1~12 최고 RP + 150 × (기대점수 − 평균))
 - 기록 갱신: `node tools/fetch-ratings.js` → `src/ratings-data.js` (dak.gg 랭크 스쿼드, 인게임 닉네임은 `src/roster.js`)
 - 시세표 `/stats`: 평가표 + 끝난 모의 경매 낙찰가 집계 (시작 크레딧 1,000 기준 환산, 봇 포함/사람만 전환). 저장소는 StatsStore Durable Object
@@ -85,7 +86,7 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 BASE=http://localhost:8787 node test/sim.js   # 규칙 자동 검증 (npm run dev 실행 중, .dev.vars 의 ALLOW_TEST_STREAMERS=1 필요 — 로컬 전용)
 BASE=http://localhost:8787 node test/bots.js       # 봇 감독 · 옵저버 정정 검증
 BASE=http://localhost:8787 node test/bots-full.js [판수]  # 봇 8명으로 24명 한 판 끝까지 (시세표 기록 확인)
-node test/bots-sim.js [판수] [시작 크레딧]       # 서버 없이 봇 8명 경매를 빠르게 여러 판 (유찰 수 · 남은 크레딧 점검)
+node test/bots-sim.js [판수] [시작 크레딧]       # 서버 없이 봇 8명 경매를 빠르게 여러 판 (유찰 수 · 남은 크레딧 · 성향별 팀 전력 점검)
 BASE=http://localhost:8787 node test/demo.js  # 감독 8명 · 스트리머 24명 데모 룸
 ```
 

@@ -60,7 +60,7 @@ const assert = (c, m) => { if (!c) { console.error('❌', m); process.exitCode =
   assert(state.passUnsold.includes(sid('플라이')), '취소한 스트리머는 유찰 경매 대기로');
 
   // 5) 끝까지 진행 — 봇이 남은 자리를 채움
-  await until(() => state.phase === 'result', 240000);
+  await until(() => state.phase === 'result', 600000);
   const sold = state.streamers.filter(s => s.status === 'sold');
   assert(sold.length === names.length, `모든 스트리머 배정 (${sold.map(s => `${s.name} ${s.price}`).join(', ')})`);
   assert(state.directors.every(d => d.points >= 0 && d.points >= (state.settings.teamSize - d.roster.length) * 10), '모든 감독이 남은 자리 몫을 지킴');

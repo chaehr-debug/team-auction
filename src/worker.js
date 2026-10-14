@@ -7,7 +7,7 @@ import { DurableObject } from 'cloudflare:workers';
 import { roomCode, uid, createRoom, publicState, tick, nextDeadline, registerDirector, handleAction } from './logic.js';
 import { STREAMER_NAMES } from './roster.js';
 import STREAMER_IMAGES from './streamer-images.js';   // 자동 생성 (tools/build-streamers.js)
-import { RATINGS, RATINGS_DATE, FORMULA, PLACE_POINTS } from './ratings.js';
+import { RATINGS, RATINGS_DATE, FORMULA, PLACE_POINTS, PERSONAS } from './ratings.js';
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code.toUpperCase()));
@@ -29,7 +29,7 @@ export default {
     // 시세표: dak.gg 평가 + 모의 경매 낙찰가 집계
     if (p === '/api/stats') {
       return json({
-        streamers: streamerPool(), ratings: RATINGS, ratingsDate: RATINGS_DATE, formula: FORMULA, placePoints: PLACE_POINTS,
+        streamers: streamerPool(), ratings: RATINGS, ratingsDate: RATINGS_DATE, formula: FORMULA, placePoints: PLACE_POINTS, personas: PERSONAS,
         market: await statsStub(env).summary(STREAMER_NAMES),
       });
     }

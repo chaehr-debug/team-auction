@@ -22,6 +22,24 @@ export function placePoints(avgRank) {
   return a + (b - a) * (r - lo);
 }
 
+// 봇 감독 성향 — 같은 매물도 성향마다 다르게 평가해서 서로 다른 스트리머를 노린다
+export const PERSONAS = {
+  power: { label: '종합형', desc: '전력 점수(RP + TK·순위) 그대로' },
+  rp: { label: 'RP 우선', desc: '순전히 시즌 최고 RP 가 높은 인원' },
+  place: { label: '승률 우선', desc: '평균 순위(순위 점수)가 좋은 인원' },
+  kill: { label: '킬 우선', desc: '평균 TK 가 높은 인원' },
+  form: { label: '현재 폼 우선', desc: '이번 시즌 RP 가 높은 인원' },
+};
+const PERSONA_FOCUS = 0.75;   // 성향 기록 반영 비율 (나머지는 전력 점수) — RP 우선 · 종합형은 해당 값 100%
+
+/** 점수 배열 → 시작 크레딧 1,000 기준 기준가 배열 (점수가 높을수록 지수적으로 비쌈, 평균 ≈ 시작 크레딧의 30%) */
+function priceOf(scores) {
+  const min = Math.min(...scores), max = Math.max(...scores);
+  const w = scores.map(x => Math.exp(FORMULA.priceCurve * (x - min) / (max - min || 1)));
+  const meanW = w.reduce((a, b) => a + b, 0) / w.length;
+  return w.map(x => Math.max(10, Math.round(1000 * FORMULA.avgPriceShare * x / meanW / 10) * 10));
+}
+
 function build() {
   const rows = STREAMER_NAMES.map(name => ({ name, ...(DATA[name] || {}), noData: !DATA[name] }));
   const withData = rows.filter(r => !r.noData);
@@ -38,17 +56,42 @@ function build() {
   }
   const sorted = [...rows].sort((a, b) => b.power - a.power);
   sorted.forEach((r, i) => { r.tier = i + 1; });
-  const min = sorted.at(-1).power, max = sorted[0].power;
-  for (const r of rows) r.weight = Math.exp(FORMULA.priceCurve * (r.power - min) / (max - min || 1));
-  const meanW = rows.reduce((s, r) => s + r.weight, 0) / rows.length;
   // 시작 크레딧 1,000 기준 기준가 (10 단위)
-  for (const r of rows) r.value1000 = Math.max(10, Math.round(1000 * FORMULA.avgPriceShare * r.weight / meanW / 10) * 10);
+  const values = priceOf(rows.map(r => r.power));
+  rows.forEach((r, i) => { r.value1000 = values[i]; });
+
+  // 봇 성향별 기준가: 성향마다 중요하게 보는 기록이 다르다 (판수가 적은 기록은 전체 평균 쪽으로 당김)
+  const shrink = (r, key) => {
+    const mean = withData.reduce((s, x) => s + x[key], 0) / (withData.length || 1);
+    if (r.noData) return mean;
+    const k = r.play / (r.play + FORMULA.shrinkGames);
+    return k * r[key] + (1 - k) * mean;
+  };
+  for (const r of rows) r.placePts = placePoints(r.rank);
+  for (const r of rows) { r.tkS = shrink(r, 'tk'); r.placeS = shrink(r, 'placePts'); r.cur = r.curRp ?? r.rp; }
+  const z = arr => { const m = arr.reduce((a, b) => a + b, 0) / arr.length; const sd = Math.sqrt(arr.reduce((a, b) => a + (b - m) ** 2, 0) / arr.length) || 1; return arr.map(x => (x - m) / sd); };
+  const zPower = z(rows.map(r => r.power));
+  // 성향 점수는 순서만 쓰고 전력 점수 분포에 다시 얹는다 → 성향마다 '누구를 더 쳐주나'만 달라지고 가격 분포는 같음
+  const byPowerDesc = rows.map(r => r.power).sort((x, y) => y - x);
+  const reRank = sc => { const idx = sc.map((x, i) => i).sort((i, j) => sc[j] - sc[i]); const out = []; idx.forEach((i, k) => { out[i] = byPowerDesc[k]; }); return out; };
+  const mix = key => reRank(z(rows.map(r => r[key])).map((x, i) => PERSONA_FOCUS * x + (1 - PERSONA_FOCUS) * zPower[i]));
+  const personaScore = {
+    power: rows.map(r => r.power),
+    rp: reRank(rows.map(r => r.rp)),
+    place: mix('placeS'),
+    kill: mix('tkS'),
+    form: mix('cur'),
+  };
+  for (const [key, score] of Object.entries(personaScore)) {
+    const v = priceOf(score);
+    rows.forEach((r, i) => { (r.personaValue ||= {})[key] = v[i]; });
+  }
 
   return Object.fromEntries(rows.map(r => [r.name, {
     nick: r.nick ?? null, rp: r.rp, bestSeason: r.bestSeason ?? null, curRp: r.curRp ?? null, curSeason: r.season ? (r.season - 17) / 2 : null,   // dak.gg seasonId 41 → 시즌 12
     tk: r.tk, rank: r.rank, play: r.play, noData: r.noData, most: r.most || [],
     placePts: +placePoints(r.rank).toFixed(2), perf: +r.perf.toFixed(2),
-    power: r.power, tier: r.tier, value1000: r.value1000,
+    power: r.power, tier: r.tier, value1000: r.value1000, personaValue: r.personaValue,
   }]));
 }
 
@@ -57,3 +100,6 @@ export const RATINGS_DATE = FETCHED_AT;
 
 /** 시작 크레딧에 맞춘 기준가 */
 export const baseValue = (name, startPoints) => Math.round((RATINGS[name]?.value1000 ?? 100) * startPoints / 1000);
+/** 봇 성향별 기준가 (시작 크레딧에 맞춤) */
+export const personaValue = (persona, name, startPoints) =>
+  Math.round((RATINGS[name]?.personaValue?.[persona] ?? RATINGS[name]?.value1000 ?? 100) * startPoints / 1000);

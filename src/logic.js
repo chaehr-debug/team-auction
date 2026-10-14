@@ -1,5 +1,5 @@
 // 경매 규칙 로직 — 플랫폼과 무관한 순수 함수 모음. 모든 판정은 서버(Durable Object)에서 이 파일로 한다.
-import { RATINGS, baseValue } from './ratings.js';
+import { RATINGS, PERSONAS, personaValue } from './ratings.js';
 
 // ── 화폐 용어 (화면 쪽은 public/js/config.js 의 CURRENCY 와 맞춰주세요) ──
 export const CURRENCY = { name: '크레딧', unit: 'CR' };
@@ -123,8 +123,10 @@ function startLot(room, now, streamerId) {
 //  2) 유찰 작전 (본 경매): 뒤에 나올 더 강한 스트리머로 남은 자리를 충분히 채울 수 있으면
 //     지금 나온 약한 스트리머는 건너뛰고 크레딧을 아낀다 → 유찰된 스트리머는 유찰 경매에서 싸게 채운다
 //  3) 마지막 한 자리: 남은 매물 중 상위권이면 남은 크레딧을 몰아서 쓴다
+//  성향(persona): 봇마다 중요하게 보는 기록이 달라 같은 매물도 다르게 평가한다 (src/ratings.js PERSONAS)
+//     → 1)~3) 의 '평가 가치'는 모두 그 봇 성향의 기준가로 계산
 const BOT = { passLine: [0.35, 0.7], bargainChance: 0.2, lastSlotAllIn: 2 };   // bargainChance: 건너뛸 때 최소가에 줍는 확률 (봇 전체 합)
-const botValue = (room, s) => baseValue(s.name, room.settings.startPoints);
+const botValue = (room, s, b) => personaValue(b.persona || 'power', s.name, room.settings.startPoints);
 const bots = room => room.directors.filter(d => d.bot && !isFull(room, d));
 function botWillingness(room, b, s) {
   const slotsLeft = room.settings.teamSize - b.roster.length;
@@ -133,15 +135,15 @@ function botWillingness(room, b, s) {
   const openSlots = open.reduce((n, d) => n + room.settings.teamSize - d.roster.length, 0);
   const money = open.reduce((n, d) => n + d.points, 0);
   const left = room.streamers.filter(x => x.status !== 'sold');                   // 현재 매물 포함 (유찰자는 유찰 경매에 다시 나옴)
-  const v = botValue(room, s);
-  const market = money * v / (left.reduce((n, x) => n + botValue(room, x), 0) || 1);
+  const v = botValue(room, s, b);
+  const market = money * v / (left.reduce((n, x) => n + botValue(room, x, b), 0) || 1);
   const rich = clamp((b.points / slotsLeft) / (money / openSlots), 0.5, 2.5);      // 남들보다 돈이 넉넉하면 그만큼 더 공격적
   let w = market * rich * (b.style || 1) * (0.85 + rand() * 0.3);
 
   if (room.phase === 'auction') {
     // 뒤에 나올, 지금 매물보다 강한 스트리머 수 ÷ 전체 빈자리. 높으면 지금 매물은 유찰 경매까지 남을 가능성이 큼
     const better = room.order.slice(room.cursor + 1).map(id => getStreamer(room, id))
-      .filter(x => x.status === 'pending' && botValue(room, x) > v);
+      .filter(x => x.status === 'pending' && botValue(room, x, b) > v);
     const passLine = BOT.passLine[0] + rand() * (BOT.passLine[1] - BOT.passLine[0]) + ((b.style || 1) - 1) * 0.5;   // 공격적인 봇일수록 덜 건너뜀
     // 돈이 넉넉한 봇은 더 강한 스트리머가 충분히 남아 있으면 약한 매물로 자리를 채우지 않는다 (크레딧을 남기지 않도록)
     const saveForBetter = rich >= 1.3 && better.length >= slotsLeft * 3 && market < (b.points / slotsLeft) * 0.5;
@@ -149,7 +151,7 @@ function botWillingness(room, b, s) {
       return rand() < BOT.bargainChance / bots(room).length ? minBidOf(s) : 0;     // 건너뜀 (가끔 최소가에 줍기만)
   }
   if (slotsLeft === 1) {
-    const stronger = left.filter(x => botValue(room, x) > v).length;
+    const stronger = left.filter(x => botValue(room, x, b) > v).length;
     w = Math.max(w, maxBid * clamp(1 - BOT.lastSlotAllIn * stronger / left.length, 0, 1));
   }
   if (room.phase === 'rebid') w = Math.max(w, minBidOf(s));                       // 유찰 경매: 남은 자리는 채운다
@@ -378,13 +380,23 @@ const OBSERVER_ACTIONS = {
     if (room.phase !== 'prep') return '준비 단계에서만 가능합니다.';
     const n = RULES.maxDirectors - room.directors.length;
     if (n <= 0) return '빈 감독 자리가 없습니다.';
+    // 성향은 골고루 섞어서 배정 (지금 있는 봇 성향 수가 적은 것부터)
+    const keys = Object.keys(PERSONAS);
+    const nextPersona = () => {
+      const count = k => room.directors.filter(d => d.persona === k).length;
+      const least = Math.min(...keys.map(count));
+      const pool = keys.filter(k => count(k) === least);
+      return pool[Math.floor(rand() * pool.length)];
+    };
     for (let k = 1, added = 0; added < n; k++) {
       const name = `봇 감독 ${k}`;
       if (room.directors.some(d => d.name === name)) continue;
+      const persona = nextPersona();
       room.directors.push({
         id: uid(4), token: uid(12), name, image: null, slot: room.directors.length,
         points: room.settings.startPoints, roster: [], connected: true, cam: null,
-        bot: true, style: +(0.85 + rand() * 0.35).toFixed(2),   // style: 봇 성향 (높을수록 비싸게 삼)
+        bot: true, style: +(0.85 + rand() * 0.35).toFixed(2),   // style: 공격성 (높을수록 비싸게 삼)
+        persona, personaLabel: PERSONAS[persona].label,         // persona: 중요하게 보는 기록
       });
       added++;
     }

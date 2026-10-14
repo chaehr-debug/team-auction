@@ -164,7 +164,7 @@ function directorCard(dir, { state, d, role }, { manage = false } = {}) {
     <div class="info">
       <div class="top">${avatar(dir, { size: 34, ring: teamColor(dir) })}
         <span class="dname">${esc(dir.name)}</span>
-        ${dir.bot ? '<span class="badge" title="자동 입찰 봇">🤖 BOT</span>' : ''}
+        ${dir.bot ? `<span class="badge" title="자동 입찰 봇${dir.personaLabel ? ` · 성향: ${esc(dir.personaLabel)}` : ''}">🤖 ${esc(dir.personaLabel || 'BOT')}</span>` : ''}
         ${!dir.connected ? '<span class="badge">OFF</span>' : ''}
         ${manage && !dir.bot ? `<button class="badge cam-btn ${dir.cam ? 'cyan' : 'unsold'}" data-action="setCam" data-id="${dir.id}" title="${esc(dir.cam || '캠 미등록')} — 클릭해서 등록/수정">CAM</button>` : ''}
         ${tools}
