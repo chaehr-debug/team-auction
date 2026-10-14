@@ -18,11 +18,29 @@ const COLS = [
   { key: 'play', label: '이번 시즌 판수', get: r => r.play, fmt: r => `<span class="num ${r.play < 100 ? 'dim' : ''}">${fmt(r.play)}</span>` },
   { key: 'value', label: '평가 기준가', get: r => r.value1000, fmt: r => cr(r.value1000) },
   { key: 'avg', label: '모의 평균 낙찰가', get: r => r.m?.avg ?? -1, fmt: r => r.m?.avg != null ? `<span class="bar" style="width:${Math.round(60 * r.m.avg / maxAvg())}px"></span><b>${cr(r.m.avg)}</b>` : '<span class="dim">–</span>' },
+  { key: 'deal', label: '가성비', get: r => r.deal?.score ?? -Infinity, fmt: r => dealCell(r.deal) },
   { key: 'range', label: '최저 ~ 최고', get: r => r.m?.max ?? -1, fmt: r => r.m?.avg != null ? `<span class="num">${fmt(r.m.min)} ~ ${fmt(r.m.max)}</span>` : '<span class="dim">–</span>' },
   { key: 'sold', label: '낙찰 / 경매', get: r => (r.m?.sold ?? 0) / (r.m?.games || 1), fmt: r => r.m ? `<span class="num">${r.m.sold} / ${r.m.games}</span>` : '<span class="dim">0</span>' },
 ];
 
-const rows = () => data.streamers.map(s => ({ ...s, ...data.ratings[s.name], m: data.market[mode][s.name] || null }));
+// 가성비: 평가 기준가를 실제 시장 지출 규모에 맞춘 '기대 낙찰가' 대비 실제 평균 낙찰가 (score > 1 이면 평가보다 싸게 팔림)
+const DEAL_BAND = 0.15;   // ±15% 안쪽은 적정
+function rows() {
+  const list = data.streamers.map(s => ({ ...s, ...data.ratings[s.name], m: data.market[mode][s.name] || null }));
+  const priced = list.filter(r => r.m?.avg > 0);
+  const scale = priced.reduce((a, r) => a + r.m.avg, 0) / (priced.reduce((a, r) => a + r.value1000, 0) || 1);
+  for (const r of priced) {
+    const expect = r.value1000 * scale;
+    r.deal = { expect: Math.round(expect), score: expect / r.m.avg, diff: r.m.avg / expect - 1 };
+  }
+  return list;
+}
+function dealCell(d) {
+  if (!d) return '<span class="dim">–</span>';
+  const pct = Math.round(Math.abs(d.diff) * 100);
+  const [cls, word] = d.diff <= -DEAL_BAND ? ['deal-good', '저렴'] : d.diff >= DEAL_BAND ? ['deal-bad', '비쌈'] : ['dim', '적정'];
+  return `<span class="${cls}" title="기대 낙찰가 ${fmt(d.expect)} CR">${word} <span class="num">${d.diff < 0 ? '−' : '+'}${pct}%</span></span>`;
+}
 const maxAvg = () => Math.max(1, ...Object.values(data.market[mode]).map(m => m.avg || 0));
 
 function render() {
@@ -53,6 +71,8 @@ function renderFormula() {
       <li><b>전력 점수</b> = 기준 RP + <code>${f.perfToRp} × (라운드 기대점수 − 전체 평균)</code><br>
         → RP 가 높을수록 위. RP 차이가 수백 점 안쪽이면 TK·순위가 순서를 가름 (기대점수 1점 = RP ${f.perfToRp}점)</li>
       <li><b>평가 기준가</b>: 전력이 높을수록 지수적으로 비싸짐 (평균 ≈ 시작 크레딧의 ${Math.round(f.avgPriceShare * 100)}%). </li>
+      <li><b>가성비</b>: 평가 기준가를 모의 경매 전체 지출 규모에 맞춘 <b>기대 낙찰가</b>와 실제 평균 낙찰가를 비교합니다.<br>
+        기대보다 ${Math.round(DEAL_BAND * 100)}% 이상 싸게 팔리면 <span class="deal-good">저렴</span>(평가 대비 저평가), ${Math.round(DEAL_BAND * 100)}% 이상 비싸게 팔리면 <span class="deal-bad">비쌈</span>(고평가), 그 사이는 적정. 칸에 마우스를 올리면 기대 낙찰가가 보입니다.</li>
       <li><b>봇 감독</b>: 남은 크레딧 총합을 남은 스트리머들의 평가 가치 비율로 나눈 시세에, 내 크레딧 여유·성향·운을 곱한 금액까지 입찰합니다.<br>
         뒤에 더 강한 스트리머가 충분히 남아 있으면 약한 매물은 건너뛰고(유찰) 유찰 경매에서 싸게 채웁니다. 크레딧이 남을수록 시세가 올라가 남은 크레딧을 끝까지 쓰고, 마지막 한 자리는 상위 매물에 몰아서 씁니다.</li>
     </ol>`;
