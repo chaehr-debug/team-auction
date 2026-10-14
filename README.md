@@ -1,6 +1,6 @@
 # 팀 경매 (자낳대 방식)
 
-옵저버 1명 + 감독 최대 8명 + 스트리머 최대 24명으로 하는 실시간 팀 경매입니다.
+옵저버 1명 + 감독 최대 8명 + 고정 스트리머 24명으로 하는 실시간 팀 경매입니다.
 
 ## 주소 (Cloudflare 배포)
 
@@ -23,7 +23,7 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 
 | 단계 | 화면 | 내용 |
 |---|---|---|
-| 1. 룸 접속 | `/` | 옵저버: 룸 생성 (스트리머 ≤24, 타이머 5~20초, 포인트 500~2000) · 감독: 룸 코드/링크로 입장 |
+| 1. 룸 접속 | `/` | 옵저버: 룸 생성 (고정 스트리머 24명, 타이머 5~20초, 포인트 500~2000) · 감독: 룸 코드/링크로 입장 |
 | 2. 준비 | `/r/코드` | 옵저버: 순서 지정(드래그/▲▼/무작위), 최소 입찰가 지정 · 감독: 닉네임 등록, 순서/포인트 미리보기 |
 | 3. 경매 | `/r/코드` | 10P 단위 입찰, 상위 입찰 시 타이머 10초 리셋, 일시 정지/재진행 |
 | 4. 유찰 경매 | `/r/코드` | 유찰된 스트리머를 순서대로 재경매 (3명 완성 감독은 참여 불가) |
@@ -53,13 +53,17 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 
 현재 경매 대상(`lot`) 패널은 패널 크기에 맞춰 글자·이미지가 같이 커지고 작아지므로, 배치를 바꿔도 다시 손볼 필요가 적습니다.
 
-## 프로필 사진
-- 스트리머: 룸 생성 시 이름 옆 동그라미 클릭, 또는 준비 단계 순서 목록의 `사진` 버튼
+## 스트리머 명단 · 프로필 사진
+- 명단은 고정 24명: `src/roster.js` (모든 룸이 이 명단으로 만들어지고, 기본 경매 순서도 이 순서)
+- 사진: `public/streamers/` 에 `스트리머명.확장자` (예: `플라이.png`, `이로나묭 치카.png`)로 넣고 `npm run deploy` → 이후 새로 만드는 모든 룸에 적용
+- 특정 룸에서만 바꾸려면 준비 단계 순서 목록의 `사진` 버튼
 - 감독: 입장 시 또는 준비 단계 `내 팀` 패널에서 변경
 - 사진이 없으면 이름 첫 글자로 만든 더미 아바타가 표시됩니다. 업로드한 사진은 Durable Object(ImageStore)에 저장됩니다.
 
 ## 규칙 세부 (`src/logic.js` 의 `RULES` 에서 변경)
 - 입찰 단위 10P, 최고가보다 높아야 하며 최소 입찰가 이상
+- 모든 스트리머 최소 입찰가 10 (`minBid`, 유찰 경매 포함). 옵저버가 더 높게만 지정 가능
+- 남은 팀원 자리 몫 보존: 최대 입찰 = 보유 − (이번 영입 후 남는 자리 수 × 10). 예) 1,000 보유 첫 영입 최대 980, 980을 쓰면 두 번째 영입은 최대 10
 - 입찰 즉시 보유 포인트에서 '보류' 표시, 상위 입찰이 들어오면 반환, 낙찰 시 확정 차감
 - 팀당 3명 (`teamSize`) — 3명을 채운 감독은 본 경매에서도 입찰 불가
 - 유찰 경매에서 다시 유찰되면 한 바퀴 뒤 재경매. 한 바퀴 동안 낙찰이 하나도 없으면 종료하고 미배정 처리
@@ -67,7 +71,7 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 
 ## 테스트
 ```bash
-BASE=http://localhost:8787 node test/sim.js   # 규칙 자동 검증 (npm run dev 실행 중)
+BASE=http://localhost:8787 node test/sim.js   # 규칙 자동 검증 (npm run dev 실행 중, .dev.vars 의 ALLOW_TEST_STREAMERS=1 필요 — 로컬 전용)
 BASE=http://localhost:8787 node test/demo.js  # 감독 8명 · 스트리머 24명 데모 룸
 ```
 
@@ -83,7 +87,7 @@ BASE=http://localhost:8787 node test/demo.js  # 감독 8명 · 스트리머 24�
 - 서버 로그/오류 문구: `src/logic.js` 의 `CURRENCY` — 두 곳을 같이 바꿔주세요
 
 ## 패널 배경 이미지
-- `public/backgrounds/` 에 `queue` · `log` · `directors` · `teams` 이름으로 이미지(webp/png/jpg/gif)를 넣고 `npm run deploy`
+- `public/backgrounds/` 에 `queue` · `lot`(가운데 현재 경매 스트리머 창) · `log` · `directors` · `teams` 이름으로 이미지(webp/png/jpg/gif)를 넣고 `npm run deploy`
 - 이름/패널 연결: `public/js/config.js` 의 `BACKGROUNDS` · 권장 크기는 `public/backgrounds/README.txt`
 
 ## 감독 캠 (vdo.ninja)

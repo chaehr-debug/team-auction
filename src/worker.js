@@ -4,10 +4,15 @@
 //  - 프로필 사진 = Durable Object 저장소 (ImageStore)
 import { DurableObject } from 'cloudflare:workers';
 import { roomCode, uid, createRoom, publicState, tick, nextDeadline, registerDirector, handleAction } from './logic.js';
+import { STREAMER_NAMES } from './roster.js';
+import STREAMER_IMAGES from './streamer-images.js';   // 자동 생성 (tools/build-streamers.js)
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code.toUpperCase()));
 const imageStub = env => env.IMAGES.get(env.IMAGES.idFromName('images'));
+
+/** 고정 스트리머 명단 + public/streamers/ 의 프로필 사진 경로 (없으면 null) */
+const streamerPool = () => STREAMER_NAMES.map(name => ({ name, image: STREAMER_IMAGES[name] || null }));
 
 export default {
   async fetch(req, env) {
@@ -15,9 +20,13 @@ export default {
     const p = url.pathname;
     let m;
 
-    // 룸 생성
+    // 고정 스트리머 명단 (룸 생성 화면 표시용)
+    if (p === '/api/streamers') return json({ streamers: streamerPool() });
+
+    // 룸 생성 — 스트리머는 항상 고정 명단 (로컬 테스트에서만 .dev.vars 의 ALLOW_TEST_STREAMERS=1 + test:true 로 임의 명단 허용)
     if (p === '/api/rooms' && req.method === 'POST') {
       const body = await req.json().catch(() => ({}));
+      if (!(env.ALLOW_TEST_STREAMERS === '1' && body.test === true)) body.streamers = streamerPool();
       for (let i = 0; i < 5; i++) {
         const code = roomCode();
         const r = await roomStub(env, code).init(body, code);

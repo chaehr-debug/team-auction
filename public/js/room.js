@@ -172,7 +172,7 @@ const ACTIONS = {
   bidAdd: el => {
     const inp = bidInput();
     const base = inp.value === '' ? +inp.dataset.min - 10 : +inp.value;
-    inp.value = Math.max(+inp.dataset.min, base + +el.dataset.v);
+    inp.value = Math.min(Math.max(+inp.dataset.min, base + +el.dataset.v), +inp.max || Infinity);   // 최대 입찰 가능액을 넘지 않게
     inp.focus();
   },
 };

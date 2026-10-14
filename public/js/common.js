@@ -135,11 +135,17 @@ export function derive(state) {
   const dirById = Object.fromEntries(state.directors.map(d => [d.id, d]));
   const c = state.current;
   const held = d => (c && c.status === 'bidding' && c.highBidderId === d.id ? c.highBid : 0);
+  const MIN = state.rules.minBid ?? 10;
+  // 남은 팀원 자리(이번 영입 제외)마다 최소 입찰가만큼 남겨야 한다 (서버 logic.js 와 같은 규칙)
+  const reserve = d => Math.max(0, state.settings.teamSize - d.roster.length - 1) * MIN;
   return {
     byId, dirById,
     held,
     available: d => d.points - held(d),
     isFull: d => d.roster.length >= state.settings.teamSize,
+    minBidOf: s => Math.max(MIN, s?.minBid || 0),
+    reserve,
+    maxBid: d => Math.max(0, d.points - reserve(d)),
     currentStreamer: c ? byId[c.streamerId] : null,
     leader: c?.highBidderId ? dirById[c.highBidderId] : null,
     queue: state.phase === 'rebid' ? state.unsoldQueue : state.order,

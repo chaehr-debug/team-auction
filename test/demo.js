@@ -2,8 +2,7 @@
 // BASE=http://localhost:8787 node test/demo.js [prep]
 import { client, createRoom, BASE as URL } from './client.js';
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const names = ['감스트','풍월량','우왁굳','침착맨','릴카','아이리칸나','김뚜띠','따효니','괴물쥐','한동숙','마젠타','오킹','삼식','강지','소풍왈츠','룩삼','징버거','고세구','비챤','주르르','징징','쫀득','박진우','머쓱'];
-const r = await createRoom({ title: '자낳대 시즌3 팀 경매', timerSec: 5, startPoints: 1000, streamers: names.map(name => ({ name })) });
+const r = await createRoom({ title: '자낳대 시즌3 팀 경매', timerSec: 5, startPoints: 1000 });   // 스트리머는 고정 명단 (src/roster.js)
 console.log(`OBS=${URL}/r/${r.code}?key=${r.observerKey}`); console.log(`CODE=${r.code}`);
 const obs = await client(r.code); let st; obs.on('state', s => (st = s));
 await obs.call('join', { code: r.code, key: r.observerKey });

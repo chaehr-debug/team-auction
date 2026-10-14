@@ -1,8 +1,7 @@
 // 1단계: 경매 룸 접속 (역할 선택 · 룸 생성 · 룸 입장)
-import { avatar, uploadImage, pickFile, toast, esc, CURRENCY } from './common.js';
+import { avatar, toast, esc, CURRENCY } from './common.js';
 
 const $ = id => document.getElementById(id);
-const MAX = 24;
 const MY_ROOMS = 'auction:myrooms';
 
 // ── 역할 선택 ──
@@ -31,55 +30,19 @@ const syncRange = () => {
 $('timerSec').oninput = $('startPoints').oninput = syncRange;
 syncRange();
 
-// ── 옵저버: 스트리머 목록 ──
-let streamers = [];
-function renderRows() {
-  $('sCount').textContent = streamers.filter(s => s.name.trim()).length;
-  $('addRow').disabled = streamers.length >= MAX;
+// ── 옵저버: 스트리머 명단 (고정 24인 — 서버 src/roster.js, 사진은 public/streamers/) ──
+fetch('/api/streamers').then(r => r.json()).then(({ streamers }) => {
+  $('sCount').textContent = streamers.length;
   $('streamerRows').innerHTML = streamers.map((s, i) => `
-    <div class="streamer-row">
-      <span class="idx num">${i + 1}</span>
-      <button type="button" class="btn btn-ghost btn-sm" data-img="${i}" title="프로필 사진" style="padding:0">${avatar(s, { size: 34 })}</button>
-      <input class="input grow" data-name="${i}" value="${esc(s.name)}" placeholder="스트리머 이름" maxlength="30">
-      <button type="button" class="btn btn-ghost btn-sm" data-del="${i}">✕</button>
-    </div>`).join('');
-}
-$('streamerRows').addEventListener('input', e => {
-  const i = e.target.dataset.name;
-  if (i !== undefined) { streamers[i].name = e.target.value; $('sCount').textContent = streamers.filter(s => s.name.trim()).length; }
-});
-$('streamerRows').addEventListener('click', async e => {
-  const del = e.target.closest('[data-del]');
-  if (del) { streamers.splice(+del.dataset.del, 1); return renderRows(); }
-  const img = e.target.closest('[data-img]');
-  if (img) {
-    const f = await pickFile();
-    if (!f) return;
-    try { streamers[+img.dataset.img].image = await uploadImage(f); renderRows(); } catch (err) { toast(err.message, true); }
-  }
-});
-$('addRow').onclick = () => { if (streamers.length < MAX) { streamers.push({ name: '', image: null }); renderRows(); } };
-$('fillDummy').onclick = () => {
-  streamers = Array.from({ length: MAX }, (_, i) => ({ name: `스트리머 ${String(i + 1).padStart(2, '0')}`, image: null }));
-  renderRows();
-};
-$('pasteNames').onclick = () => {
-  const text = prompt('스트리머 이름을 줄바꿈 또는 쉼표로 구분해 입력하세요 (최대 24명)');
-  if (!text) return;
-  streamers = text.split(/[\n,]/).map(s => s.trim()).filter(Boolean).slice(0, MAX).map(name => ({ name, image: null }));
-  renderRows();
-};
-for (let i = 0; i < 8; i++) streamers.push({ name: '', image: null });
-renderRows();
+    <div class="streamer-row"><span class="idx num">${i + 1}</span>${avatar(s, { size: 34 })}<span class="name">${esc(s.name)}</span></div>`).join('');
+}).catch(() => toast('스트리머 명단을 불러오지 못했습니다.', true));
 
 // ── 룸 생성 ──
 $('createForm').onsubmit = async e => {
   e.preventDefault();
-  const list = streamers.filter(s => s.name.trim());
-  if (!list.length) return toast('스트리머를 1명 이상 등록하세요.', true);
   const r = await fetch('/api/rooms', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ title: $('title').value, timerSec: +$('timerSec').value, startPoints: +$('startPoints').value, streamers: list }),
+    body: JSON.stringify({ title: $('title').value, timerSec: +$('timerSec').value, startPoints: +$('startPoints').value }),
   });
   const j = await r.json();
   if (!r.ok) return toast(j.error, true);

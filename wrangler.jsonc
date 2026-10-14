@@ -2,6 +2,8 @@
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "team-auction",
   "main": "src/worker.js",
+  // public/streamers/ 사진 목록 → src/streamer-images.js (dev / deploy 때마다 자동 생성)
+  "build": { "command": "node tools/build-streamers.js", "watch_dir": "public/streamers" },
   "compatibility_date": "2026-10-01",
   "assets": {
     "directory": "./public",

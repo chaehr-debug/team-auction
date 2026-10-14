@@ -31,6 +31,7 @@ export const TICK_LAST_SECONDS = 0;
  */
 export const BACKGROUNDS = {
   queue:     { file: 'queue',     panels: ['queue', 'upcoming'] },  // 3단계 경매 순서 (오버레이 '다음 경매 순서' 포함)
+  lot:       { file: 'lot',       panels: ['lot'] },                // 3단계 가운데 현재 경매 중인 스트리머 창
   log:       { file: 'log',       panels: ['log'] },                // 3단계 경매 로그
   directors: { file: 'directors', panels: ['directors'] },          // 3단계 감독 표기 창
   teams:     { file: 'teams',     panels: ['teams'] },              // 5단계 최종 팀 구성

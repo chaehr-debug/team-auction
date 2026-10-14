@@ -10,6 +10,7 @@ export const RULES = {
   maxDirectors: 8,
   teamSize: 3,            // 팀당 스트리머 수 (24 / 8)
   bidStep: 10,            // 입찰 단위
+  minBid: 10,             // 모든 스트리머 최소 입찰가 (유찰 경매 포함). 남은 팀원 자리마다 이만큼은 남겨둬야 한다
   timerMin: 5, timerMax: 20,
   pointsMin: 500, pointsMax: 2000,
   bidResetSec: 10,        // 상위 입찰 발생 시 타이머 리셋 값
@@ -39,6 +40,10 @@ const getDirector = (room, id) => room.directors.find(d => d.id === id);
 const isFull = (room, d) => d.roster.length >= room.settings.teamSize;
 const eligibleDirectors = room => room.directors.filter(d => !isFull(room, d));
 const running = room => room.phase === 'auction' || room.phase === 'rebid';
+/** 이번 입찰에 쓸 수 있는 최대치 = 보유 - (이번 영입 후 남는 팀원 자리 × 최소 입찰가) */
+const reserveFor = (room, d) => Math.max(0, room.settings.teamSize - d.roster.length - 1) * RULES.minBid;
+const maxBidOf = (room, d) => Math.max(0, d.points - reserveFor(room, d));
+const minBidOf = s => Math.max(RULES.minBid, s.minBid || 0);
 
 /** 클라이언트로 보내는 공개 상태 (토큰·옵저버 키 제외) */
 export function publicState(room, now) {
@@ -68,7 +73,7 @@ export function createRoom(b, code, now) {
     },
     phase: 'prep',            // prep → auction → rebid → result
     paused: false,
-    streamers: names.map(s => ({ id: uid(4), name: s.name, image: s.image, minBid: 0, status: 'pending', teamId: null, price: null })),
+    streamers: names.map(s => ({ id: uid(4), name: s.name, image: s.image, minBid: RULES.minBid, status: 'pending', teamId: null, price: null })),
     order: [],
     cursor: -1,
     unsoldQueue: [],
@@ -97,7 +102,7 @@ function startLot(room, now, streamerId) {
     bidCount: 0,
   };
   const tag = room.phase === 'rebid' ? '[유찰 경매] ' : '';
-  log(room, now, 'lot', `${tag}${s.name} 경매 시작! (최소 ${fmtc(s.minBid)})`, { streamerId });
+  log(room, now, 'lot', `${tag}${s.name} 경매 시작! (최소 ${fmtc(minBidOf(s))})`, { streamerId });
 }
 
 function resolveLot(room, now) {
@@ -236,7 +241,7 @@ const OBSERVER_ACTIONS = {
     if (room.phase !== 'prep') return '준비 단계에서만 가능합니다.';
     const s = getStreamer(room, id);
     if (!s) return '스트리머를 찾을 수 없습니다.';
-    s.minBid = clamp(Math.round((+minBid || 0) / RULES.bidStep) * RULES.bidStep, 0, room.settings.startPoints);
+    s.minBid = clamp(Math.round((+minBid || 0) / RULES.bidStep) * RULES.bidStep, RULES.minBid, room.settings.startPoints);
   },
   'prep:setStreamerImage'(room, now, { id, image }) {
     const s = getStreamer(room, id);
@@ -298,9 +303,11 @@ const DIRECTOR_ACTIONS = {
     amount = Math.round(+amount);
     const s = getStreamer(room, c.streamerId);
     if (!Number.isFinite(amount) || amount <= 0 || amount % RULES.bidStep) return `${fmtc(RULES.bidStep)} 단위로 입찰하세요.`;
-    if (amount < s.minBid) return `최소 입찰가는 ${fmtc(s.minBid)} 입니다.`;
+    if (amount < minBidOf(s)) return `최소 입찰가는 ${fmtc(minBidOf(s))} 입니다.`;
     if (c.highBid !== null && amount <= c.highBid) return `현재 최고가(${fmtc(c.highBid)})보다 높게 입찰하세요.`;
     if (amount > director.points) return `보유 ${CURRENCY.name}이 부족합니다.`;
+    if (amount > maxBidOf(room, director))
+      return `남은 팀원 자리를 위해 ${fmtc(reserveFor(room, director))}을 남겨야 합니다. (최대 ${fmtc(maxBidOf(room, director))})`;
 
     c.highBid = amount;
     c.highBidderId = director.id;   // 이전 최고 입찰자의 보류 크레딧은 자동 반환 (보류 = 최고입찰액)

@@ -63,8 +63,8 @@ const order = {
     const items = state.order.map((id, i) => {
       const s = d.byId[id];
       const minBid = editable
-        ? `<input class="input minbid num" type="number" min="0" step="10" value="${s.minBid}" data-action="minbid" data-id="${s.id}" title="최소 입찰 ${CURRENCY.name}">`
-        : `<span class="minbid num ${s.minBid ? '' : 'muted'}">${s.minBid ? `최소 ${cr(s.minBid)}` : cr(0)}</span>`;
+        ? `<input class="input minbid num" type="number" min="${state.rules.minBid}" step="10" value="${d.minBidOf(s)}" data-action="minbid" data-id="${s.id}" title="최소 입찰 ${CURRENCY.name}">`
+        : `<span class="minbid num">최소 ${cr(d.minBidOf(s))}</span>`;
       const tools = editable ? `
         <button class="btn btn-sm btn-ghost" data-action="move" data-id="${s.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button>
         <button class="btn btn-sm btn-ghost" data-action="move" data-id="${s.id}" data-dir="1" ${i === state.order.length - 1 ? 'disabled' : ''}>▼</button>
@@ -75,7 +75,7 @@ const order = {
     const extra = editable
       ? `<button class="btn btn-sm" data-action="shuffle">🎲 무작위 순서</button>`
       : `<span class="num">${state.order.length}명</span>`;
-    const hint = editable ? `<div class="muted" style="font-size:13px">드래그 또는 ▲▼로 순서 변경 · 최소 입찰가 미지정 시 0 ${CURRENCY.unit}부터 시작</div>` : '';
+    const hint = editable ? `<div class="muted" style="font-size:13px">드래그 또는 ▲▼로 순서 변경 · 모든 스트리머 최소 입찰가는 ${cr(state.rules.minBid)} 이상</div>` : '';
     return panel(`경매 순서 (${state.order.length}명)`, `${hint}<div class="panel-body"><ol class="order-list">${items}</ol></div>`, extra);
   },
 };
@@ -98,7 +98,7 @@ function lineupItem(s, d, kind, label) {
     const dir = d.dirById[s.teamId];
     tag = `<span class="badge" style="background:${teamColor(dir)};color:#111">${esc(dir?.name)} · <span class="num">${cr(s.price)}</span></span>`;
   } else if (kind === 'unsold') tag = '<span class="badge unsold">유찰</span>';
-  else if (s.minBid) tag = `<span class="muted num" style="font-size:12px">최소 ${cr(s.minBid)}</span>`;
+  else if (d.minBidOf(s) > d.minBidOf(null)) tag = `<span class="muted num" style="font-size:12px">최소 ${cr(d.minBidOf(s))}</span>`;
   const cls = { done: 'is-done', current: 'is-current', unsold: 'is-unsold', next: '' }[kind];
   return `<li class="order-item ${cls}"><span class="idx num">${label}</span>${avatar(s, { size: 30 })}<span class="name">${esc(s.name)}</span>${tag}</li>`;
 }
@@ -285,7 +285,7 @@ const lot = {
       <div class="status">${status}</div>
       ${avatar(s, { square: true, ring: leader ? teamColor(leader) : undefined })}
       <div class="lot-name">${esc(s.name)}</div>
-      <div class="lot-meta">최소 입찰 <span class="num">${cr(s.minBid)}</span> · 입찰 <span class="num">${c.bidCount}</span>회</div>
+      <div class="lot-meta">최소 입찰 <span class="num">${cr(d.minBidOf(s))}</span> · 입찰 <span class="num">${c.bidCount}</span>회</div>
       <div class="price">${c.highBid !== null ? cr(c.highBid) : '–'}</div>
       <div class="leader" style="color:${teamColor(leader)}">${leader ? `${esc(leader.name)} 최고 입찰` : '입찰 대기'}</div>
       ${isReveal ? '' : timerHtml()}
@@ -320,24 +320,30 @@ const bid = {
     else if (state.paused) reason = '일시 정지 중';
     else if (d.isFull(me)) reason = `팀 구성 완료 (${state.settings.teamSize}명) — 더 이상 입찰할 수 없습니다`;
     else if (c.highBidderId === me.id) reason = '현재 최고 입찰자입니다';
-    const minNext = s ? Math.max(s.minBid, c.highBid !== null ? c.highBid + 10 : 10) : 0;
-    const can = !reason && me && minNext <= me.points;
-    if (!reason && me && minNext > me.points) reason = `보유 ${CURRENCY.name} 부족`;
+    const minNext = s ? Math.max(d.minBidOf(s), c.highBid !== null ? c.highBid + 10 : 0) : 0;
+    const max = me ? d.maxBid(me) : 0;   // 남은 팀원 자리 몫을 뺀 최대 입찰 가능액
+    const can = !reason && me && minNext <= max;
+    if (!reason && me && minNext > max) reason = d.reserve(me) && minNext <= me.points
+      ? `남은 팀원 자리를 위해 ${cr(d.reserve(me))}을 남겨야 합니다 (최대 ${cr(max)})`
+      : `보유 ${CURRENCY.name} 부족`;
     const dis = can ? '' : 'disabled';
+    const reserveNote = me && !d.isFull(me) && d.reserve(me)
+      ? `<div class="muted" style="font-size:12px">남은 팀원 ${state.settings.teamSize - me.roster.length - 1}자리 몫 <span class="num">${cr(d.reserve(me))}</span> 보존 · 최대 입찰 <b class="num">${cr(max)}</b></div>` : '';
     return panel('입찰', `
       <div class="row muted" style="justify-content:space-between">
         <span>보유 ${CURRENCY.name} <b class="num" style="color:var(--accent-hi)">${cr(me ? d.available(me) : 0)}</b></span>
         <span>다음 최소 <b class="num">${cr(minNext)}</b></span>
       </div>
+      ${reserveNote}
       <div class="bid-row">
-        <input class="input num grow" type="number" step="10" min="${minNext}" max="${me?.points ?? 0}" placeholder="${minNext}"
+        <input class="input num grow" type="number" step="10" min="${minNext}" max="${max}" placeholder="${minNext}"
           data-keep="bidAmount" data-min="${minNext}" ${dis}>
         <button class="btn btn-primary btn-lg" data-action="bid" ${dis}>입찰</button>
       </div>
       <div class="quick">
         <button class="btn btn-sm" data-action="bidQuick" data-v="${minNext}" ${dis}>최소 <span class="num">${fmt(minNext)}</span></button>
         ${[10, 50, 100, 200].map(v => `<button class="btn btn-sm num" data-action="bidAdd" data-v="${v}" ${dis}>+${v}</button>`).join('')}
-        <button class="btn btn-sm" data-action="bidQuick" data-v="${me?.points ?? 0}" ${dis}>올인</button>
+        <button class="btn btn-sm" data-action="bidQuick" data-v="${max}" ${dis} title="남은 팀원 자리 몫을 뺀 최대치">올인 <span class="num">${fmt(max)}</span></button>
       </div>
       <div class="reason">${reason}</div>`);
   },

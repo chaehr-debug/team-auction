@@ -1,0 +1,27 @@
+// 자동 생성 파일 (tools/build-streamers.js) — 직접 수정하지 마세요
+export default {
+  "플라이": "/streamers/%ED%94%8C%EB%9D%BC%EC%9D%B4.jpg",
+  "베릴": "/streamers/%EB%B2%A0%EB%A6%B4.png",
+  "피닉스박": "/streamers/%ED%94%BC%EB%8B%89%EC%8A%A4%EB%B0%95.png",
+  "갱맘": "/streamers/%EA%B0%B1%EB%A7%98.jpg",
+  "이로클라우드": "/streamers/%EC%9D%B4%EB%A1%9C%ED%81%B4%EB%9D%BC%EC%9A%B0%EB%93%9C.png",
+  "노페": "/streamers/%EB%85%B8%ED%8E%98.png",
+  "네브짱": "/streamers/%EB%84%A4%EB%B8%8C%EC%A7%B1.png",
+  "자연": "/streamers/%EC%9E%90%EC%97%B0.jpg",
+  "후참": "/streamers/%ED%9B%84%EC%B0%B8.png",
+  "큐베": "/streamers/%ED%81%90%EB%B2%A0.png",
+  "방찌": "/streamers/%EB%B0%A9%EC%B0%8C.png",
+  "유세라": "/streamers/%EC%9C%A0%EC%84%B8%EB%9D%BC.jpg",
+  "앰비션": "/streamers/%EC%95%B0%EB%B9%84%EC%85%98.png",
+  "눈가루": "/streamers/%EB%88%88%EA%B0%80%EB%A3%A8.png",
+  "플레임": "/streamers/%ED%94%8C%EB%A0%88%EC%9E%84.png",
+  "마린": "/streamers/%EB%A7%88%EB%A6%B0.png",
+  "왈도쿤": "/streamers/%EC%99%88%EB%8F%84%EC%BF%A4.png",
+  "쾅준": "/streamers/%EC%BE%85%EC%A4%80.png",
+  "이로나묭 치카": "/streamers/%EC%9D%B4%EB%A1%9C%EB%82%98%EB%AC%AD%20%EC%B9%98%EC%B9%B4.png",
+  "고수달": "/streamers/%EA%B3%A0%EC%88%98%EB%8B%AC.jpg",
+  "위구리": "/streamers/%EC%9C%84%EA%B5%AC%EB%A6%AC.png",
+  "모카형": "/streamers/%EB%AA%A8%EC%B9%B4%ED%98%95.png",
+  "감규리": "/streamers/%EA%B0%90%EA%B7%9C%EB%A6%AC.jpg",
+  "스나랑": "/streamers/%EC%8A%A4%EB%82%98%EB%9E%91.jpg"
+};
