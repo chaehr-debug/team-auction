@@ -2,7 +2,7 @@
 import { avatar, esc, fmt, cr, mostPicks } from './common.js';
 
 const $ = id => document.getElementById(id);
-let data, mode = 'all', sortKey = 'tier', sortDir = 1;
+let data, mode = 'all', sortKey = 'avg', sortDir = -1;   // 기본: 모의 평균 낙찰가 높은 순
 
 const COLS = [
   { key: 'tier', label: '순위', get: r => r.tier, fmt: r => `<span class="num">${r.tier}</span>` },
