@@ -1,5 +1,6 @@
 // 시세표 기록을 봇 8명 모의 경매 시뮬레이션 결과로 교체한다 (기존 기록은 서버에서 sales_archive 로 보관)
 // ADMIN_KEY=... BASE=https://... node tools/seed-stats.js [판수=200] [시작 크레딧=1000]
+// 사람 감독이 참여한 경매 기록은 남긴다 (KEEP_HUMAN=0 이면 모두 교체)
 import { createRoom, handleAction, tick, nextDeadline } from '../src/logic.js';
 import { STREAMER_NAMES } from '../src/roster.js';
 
@@ -25,6 +26,6 @@ for (let g = 0; g < count; g++) {
 }
 
 const r = await fetch(`${BASE}/api/admin/stats`, {
-  method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-key': KEY }, body: JSON.stringify({ games }),
+  method: 'POST', headers: { 'Content-Type': 'application/json', 'x-admin-key': KEY }, body: JSON.stringify({ games, keepHuman: process.env.KEEP_HUMAN !== '0' }),
 });
 console.log(r.status, await r.text());

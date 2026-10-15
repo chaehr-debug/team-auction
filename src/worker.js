@@ -36,12 +36,13 @@ export default {
       });
     }
     // 시세표 기록 교체 (관리자 전용, wrangler secret ADMIN_KEY) — 기존 기록은 sales_archive 로 옮겨 보관
-    // body: { games: [{ room, at, start, humans, bots, rows: [{ name, price, bot }] }] } · tools/seed-stats.js 참고
+    // body: { games: [{ room, at, start, humans, bots, rows: [{ name, price, bot }] }], keepHuman } · tools/seed-stats.js 참고
+    //  keepHuman: 사람 감독이 참여했던 경매는 (보관함 포함) 그대로 남긴다
     if (p === '/api/admin/stats' && req.method === 'POST') {
       if (!env.ADMIN_KEY || req.headers.get('x-admin-key') !== env.ADMIN_KEY) return json({ error: 'forbidden' }, 403);
-      const { games } = await req.json().catch(() => ({}));
+      const { games, keepHuman } = await req.json().catch(() => ({}));
       if (!Array.isArray(games)) return json({ error: 'games 배열이 필요합니다.' }, 400);
-      return json(await statsStub(env).replace(games));
+      return json(await statsStub(env).replace(games, { keepHuman: !!keepHuman }));
     }
 
     // 룸 생성 — 스트리머는 항상 고정 명단 (로컬 테스트에서만 .dev.vars 의 ALLOW_TEST_STREAMERS=1 + test:true 로 임의 명단 허용)
@@ -231,15 +232,22 @@ export class StatsStore extends DurableObject {
     for (const r of rows) sql.exec('INSERT INTO sales VALUES (?, ?, ?, ?, ?, ?, ?, ?)', room, at, r.name, r.price, start, r.bot, humans, bots);
   }
   /** 기록 교체: 지금 기록을 sales_archive 로 옮기고 주어진 경매들로 새로 채운다 */
-  async replace(games) {
+  async replace(games, { keepHuman = false } = {}) {
     this.init();
     const sql = this.ctx.storage.sql;
     sql.exec('CREATE TABLE IF NOT EXISTS sales_archive (room TEXT, at INTEGER, name TEXT, price INTEGER, start INTEGER, bot INTEGER, humans INTEGER, bots INTEGER, archivedAt INTEGER)');
     const archived = sql.exec('SELECT COUNT(DISTINCT room) AS n FROM sales').toArray()[0].n;
     sql.exec('INSERT INTO sales_archive SELECT *, ? FROM sales', Date.now());
     sql.exec('DELETE FROM sales');
+    let kept = 0;
+    if (keepHuman) {
+      // 보관함에서 사람 감독이 있던 경매를 (룸마다 가장 최근 보관본으로) 되살린다
+      sql.exec(`INSERT INTO sales SELECT room, at, name, price, start, bot, humans, bots FROM sales_archive a
+        WHERE humans > 0 AND archivedAt = (SELECT MAX(archivedAt) FROM sales_archive b WHERE b.room = a.room)`);
+      kept = sql.exec('SELECT COUNT(DISTINCT room) AS n FROM sales').toArray()[0].n;
+    }
     for (const g of games) await this.record(g.room, g.at, g.start, g.humans, g.bots, g.rows);
-    return { archived, inserted: games.length };
+    return { archived, keptHuman: kept, inserted: games.length };
   }
   /** 스트리머별 집계 — 가격은 시작 크레딧 1,000 기준으로 환산 */
   async summary(names) {
