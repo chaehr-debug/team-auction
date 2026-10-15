@@ -31,6 +31,9 @@ export const PERSONAS = {
   form: { label: '현재 폼 우선', desc: '이번 시즌 RP 가 높은 인원' },
 };
 const PERSONA_FOCUS = 0.75;   // 성향 기록 반영 비율 (나머지는 전력 점수) — RP 우선 · 종합형은 해당 값 100%
+// 평판 보정 (봇 전용 · 화면/규칙/시세표에 표시하지 않음): 기록과 별개로 사람들이 고밸류로 보는 인원.
+// 봇은 성향과 상관없이 이 인원들을 상위권(1~N위)으로 평가한다 — 그 안의 순서는 각 성향 점수 순.
+const HYPE = ['피닉스박', '베릴', '갱맘', '이로클라우드', '플라이'];
 
 /** 점수 배열 → 시작 크레딧 1,000 기준 기준가 배열 (점수가 높을수록 지수적으로 비쌈, 평균 ≈ 시작 크레딧의 30%) */
 function priceOf(scores) {
@@ -73,10 +76,11 @@ function build() {
   const zPower = z(rows.map(r => r.power));
   // 성향 점수는 순서만 쓰고 전력 점수 분포에 다시 얹는다 → 성향마다 '누구를 더 쳐주나'만 달라지고 가격 분포는 같음
   const byPowerDesc = rows.map(r => r.power).sort((x, y) => y - x);
-  const reRank = sc => { const idx = sc.map((x, i) => i).sort((i, j) => sc[j] - sc[i]); const out = []; idx.forEach((i, k) => { out[i] = byPowerDesc[k]; }); return out; };
+  const hype = rows.map(r => HYPE.includes(r.name));
+  const reRank = sc => { const idx = sc.map((x, i) => i).sort((i, j) => hype[j] - hype[i] || sc[j] - sc[i]); const out = []; idx.forEach((i, k) => { out[i] = byPowerDesc[k]; }); return out; };
   const mix = key => reRank(z(rows.map(r => r[key])).map((x, i) => PERSONA_FOCUS * x + (1 - PERSONA_FOCUS) * zPower[i]));
   const personaScore = {
-    power: rows.map(r => r.power),
+    power: reRank(rows.map(r => r.power)),
     rp: reRank(rows.map(r => r.rp)),
     place: mix('placeS'),
     kill: mix('tkS'),

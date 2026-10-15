@@ -8,6 +8,8 @@ import { roomCode, uid, createRoom, publicState, tick, nextDeadline, registerDir
 import { STREAMER_NAMES } from './roster.js';
 import STREAMER_IMAGES from './streamer-images.js';   // 자동 생성 (tools/build-streamers.js)
 import { RATINGS, RATINGS_DATE, FORMULA, PLACE_POINTS, PERSONAS } from './ratings.js';
+// 봇 내부 평가(personaValue)는 공개하지 않는다
+const publicRatings = Object.fromEntries(Object.entries(RATINGS).map(([n, { personaValue, ...r }]) => [n, r]));
 
 const json = (data, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json' } });
 const roomStub = (env, code) => env.ROOMS.get(env.ROOMS.idFromName(code.toUpperCase()));
@@ -29,7 +31,7 @@ export default {
     // 시세표: dak.gg 평가 + 모의 경매 낙찰가 집계
     if (p === '/api/stats') {
       return json({
-        streamers: streamerPool(), ratings: RATINGS, ratingsDate: RATINGS_DATE, formula: FORMULA, placePoints: PLACE_POINTS, personas: PERSONAS,
+        streamers: streamerPool(), ratings: publicRatings, ratingsDate: RATINGS_DATE, formula: FORMULA, placePoints: PLACE_POINTS, personas: PERSONAS,
         market: await statsStub(env).summary(STREAMER_NAMES),
       });
     }
