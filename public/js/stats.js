@@ -2,7 +2,14 @@
 import { avatar, esc, fmt, cr, mostPicks } from './common.js';
 
 const $ = id => document.getElementById(id);
-let data, mode = 'all', sortKey = 'avg', sortDir = -1;   // 기본: 모의 평균 낙찰가 높은 순
+let data, mode = 'all', sortKey = 'avg', sortDir = -1;   // 기본: 모의 평균 낙찰가 높은 순 (아래 ?sort= 로 변경)
+
+// 모스트 칸이 이번 시즌 기준인지 (이번 시즌 RP 로 정렬 중이거나, 이번 시즌 기준 모스트 칸으로 정렬을 이어가는 중)
+// ?sort=열이름 으로 정렬 기준을 정해 열 수 있음 (예: /stats?sort=curRp)
+const initSort = new URLSearchParams(location.search).get('sort');
+let curMostView = initSort === 'curRp';
+const curView = () => curMostView;
+const mostOf = r => curView() ? r.curMost : r.most;
 
 const COLS = [
   { key: 'tier', label: '순위', get: r => r.tier, fmt: r => `<span class="num">${r.tier}</span>` },
@@ -10,8 +17,10 @@ const COLS = [
       <a href="https://dak.gg/er/players/${encodeURIComponent(r.nick ?? '')}" target="_blank" rel="noopener">${esc(r.name)}</a>
       <div class="nick">${esc(r.nick ?? '')}</div></div></div>` },
   { key: 'power', label: '전력 점수', get: r => r.power, fmt: r => `<b class="num">${fmt(r.power)}</b>` },
-  { key: 'rp', label: '최고 RP', get: r => r.rp, fmt: r => `<span class="num">${fmt(r.rp)}</span>${r.bestSeason ? ` <span class="dim num" style="font-size:12px">시즌 ${r.bestSeason}</span>` : ''}${r.curRp != null && r.curRp !== r.rp ? `<div class="dim num" style="font-size:12px">이번 시즌 ${fmt(r.curRp)}</div>` : ''}` },
-  { key: 'most', label: '최고 시즌 모스트', get: r => r.most?.[0]?.name ?? '', fmt: r => mostPicks(r.most, { size: 20 }) || '<span class="dim">–</span>' },
+  { key: 'rp', label: '최고 RP', get: r => r.rp, fmt: r => `<span class="num">${fmt(r.rp)}</span>${r.bestSeason ? ` <span class="dim num" style="font-size:12px">시즌 ${r.bestSeason}</span>` : ''}` },
+  { key: 'curRp', label: '이번 시즌 RP', get: r => r.curRp ?? -1, fmt: r => r.curRp != null ? `<span class="num">${fmt(r.curRp)}</span>${r.curSeason ? ` <span class="dim num" style="font-size:12px">시즌 ${r.curSeason}</span>` : ''}` : '<span class="dim">–</span>' },
+  // 이번 시즌 RP 로 정렬하면 이번 시즌 모스트, 그 외에는 최고 RP 시즌 모스트
+  { key: 'most', label: () => curView() ? '이번 시즌 모스트' : '최고 시즌 모스트', get: r => mostOf(r)?.[0]?.name ?? '', fmt: r => mostPicks(mostOf(r), { size: 20 }) || '<span class="dim">–</span>' },
   { key: 'tk', label: '평균 TK', get: r => r.tk, fmt: r => `<span class="num">${r.tk.toFixed(2)}</span>` },
   { key: 'rank', label: '평균 순위', get: r => -r.rank, fmt: r => `<span class="num">${r.rank.toFixed(2)}</span> <span class="dim num">(${r.placePts}점)</span>` },
   { key: 'perf', label: '라운드 기대점수', get: r => r.perf, fmt: r => `<span class="num">${r.perf.toFixed(2)}</span>` },
@@ -43,13 +52,15 @@ function dealCell(d) {
 }
 const maxAvg = () => Math.max(1, ...Object.values(data.market[mode]).map(m => m.avg || 0));
 
+if (COLS.some(c => c.key === initSort)) { sortKey = initSort; sortDir = ['tier', 'name', 'most'].includes(sortKey) ? 1 : -1; }
+
 function render() {
   const col = COLS.find(c => c.key === sortKey);
   const list = rows().sort((a, b) => {
     const x = col.get(a), y = col.get(b);
     return (typeof x === 'string' ? x.localeCompare(y) : x - y) * sortDir;
   });
-  $('table').innerHTML = `<thead><tr>${COLS.map(c => `<th data-key="${c.key}" class="${c.key === sortKey ? 'sorted' : ''}">${c.label}${c.key === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
+  $('table').innerHTML = `<thead><tr>${COLS.map(c => `<th data-key="${c.key}" class="${c.key === sortKey ? 'sorted' : ''}">${typeof c.label === 'function' ? c.label() : c.label}${c.key === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : ''}</th>`).join('')}</tr></thead>
     <tbody>${list.map(r => `<tr>${COLS.map(c => `<td>${c.fmt(r)}</td>`).join('')}</tr>`).join('')}</tbody>`;
   const m = data.market;
   $('summary').innerHTML = `
@@ -83,6 +94,8 @@ function renderFormula() {
 $('table').addEventListener('click', e => {
   const th = e.target.closest('th[data-key]');
   if (!th) return;
+  // 이번 시즌 RP 를 누르면 모스트 칸이 이번 시즌 모스트로, 다른 기준(모스트 칸 제외)을 누르면 최고 시즌 모스트로
+  if (th.dataset.key !== 'most') curMostView = th.dataset.key === 'curRp';
   if (sortKey === th.dataset.key) sortDir *= -1;
   else { sortKey = th.dataset.key; sortDir = ['tier', 'name', 'most'].includes(sortKey) ? 1 : -1; }
   render();
