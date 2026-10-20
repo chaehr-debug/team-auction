@@ -60,7 +60,7 @@ function log(room, now, type, text, extra = {}) {
 // 화면에 보여줄 dak.gg 평가 요약 (명단에 없는 이름이면 null)
 function statsOf(name) {
   const r = RATINGS[name];
-  return r ? { tier: r.tier, power: r.power, rp: r.rp, bestSeason: r.bestSeason, curRp: r.curRp, curSeason: r.curSeason, most: r.most, tk: r.tk, rank: r.rank, play: r.play, noData: r.noData } : null;
+  return r ? { tier: r.tier, power: r.power, rp: r.rp, bestSeason: r.bestSeason, curRp: r.curRp, curSeason: r.curSeason, most: r.most, curMost: r.curMost, tk: r.tk, rank: r.rank, play: r.play, noData: r.noData } : null;
 }
 
 // ── 룸 생성 ──────────────────────────────────────────────
