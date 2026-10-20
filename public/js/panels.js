@@ -280,6 +280,11 @@ export function statsLine(s) {
   if (!st || st.noData) return '';
   const season = n => n ? ` <span class="muted">(시즌 ${n})</span>` : '';
   // 이번 시즌 줄: 현재 RP + 이번 시즌 모스트 / 기록 줄: 최고 RP + 평균 TK · 평균 순위 (TK·순위도 이번 시즌 기록)
+  // 이번 시즌 모스트(curMost)가 없는 룸 = 이 기능 이전에 만들어진 룸 → 예전 표시 그대로 (진행 중인 경매 화면이 바뀌지 않도록)
+  if (!('curMost' in st)) {
+    return `<div class="lot-stats lot-most">최고 RP <b class="num">${fmt(st.rp)}</b>${season(st.bestSeason)}${st.most?.length ? ` · 모스트 ${mostPicks(st.most)}` : ''}</div>
+    <div class="lot-stats">${st.curRp != null ? `현재 RP <b class="num">${fmt(st.curRp)}</b>${season(st.curSeason)} · ` : ''}평균 TK <b class="num">${st.tk.toFixed(2)}</b> · 평균 순위 <b class="num">${st.rank.toFixed(2)}</b></div>`;
+  }
   const cur = st.curRp ?? st.rp;
   return `<div class="lot-stats lot-most">현재 RP <b class="num">${fmt(cur)}</b>${season(st.curSeason)}${st.curMost?.length ? ` · 모스트 ${mostPicks(st.curMost)}` : ''}</div>
     <div class="lot-stats">최고 RP <b class="num">${fmt(st.rp)}</b>${season(st.bestSeason)} · 평균 TK <b class="num">${st.tk.toFixed(2)}</b> · 평균 순위 <b class="num">${st.rank.toFixed(2)}</b></div>`;
