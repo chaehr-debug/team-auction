@@ -153,9 +153,12 @@ export class AuctionRoom extends DurableObject {
   }
 
   broadcast() {
-    const msg = JSON.stringify({ ev: 'state', data: publicState(this.room, Date.now()) });
+    // 옵저버만 개인 평가 점수를 받으므로 역할별로 따로 만든다
+    const now = Date.now(), msgs = {};
+    const msgFor = role => (msgs[role] ||= JSON.stringify({ ev: 'state', data: publicState(this.room, now, role) }));
     for (const ws of this.ctx.getWebSockets()) {
-      try { ws.send(msg); } catch { /* 끊긴 소켓 */ }
+      const role = ws.deserializeAttachment()?.role === 'observer' ? 'observer' : 'viewer';
+      try { ws.send(msgFor(role)); } catch { /* 끊긴 소켓 */ }
     }
   }
 
@@ -186,7 +189,7 @@ export class AuctionRoom extends DurableObject {
         if (director) { att.role = 'director'; att.directorId = director.id; director.connected = true; }
       }
       ws.serializeAttachment(att);
-      reply({ ok: true, role: att.role, directorId: att.directorId, state: publicState(room, now) });
+      reply({ ok: true, role: att.role, directorId: att.directorId, state: publicState(room, now, att.role) });
       if (director || ticked) await this.commit();
       return;
     }

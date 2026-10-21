@@ -68,17 +68,24 @@ const order = {
       const minBid = editable
         ? `<input class="input minbid num" type="number" min="${state.rules.minBid}" step="10" value="${d.minBidOf(s)}" data-action="minbid" data-id="${s.id}" title="최소 입찰 ${CURRENCY.name}">`
         : `<span class="minbid num">최소 ${cr(d.minBidOf(s))}</span>`;
+      // 개인 평가 점수 (옵저버 전용, 선택) — 비우면 기존 경매와 같음
+      const score = editable
+        ? `<input class="input score num" type="number" step="any" value="${s.score ?? ''}" placeholder="평가" data-action="score" data-id="${s.id}" data-name="${esc(s.name)}" data-keep="score-${s.id}" title="개인 평가 점수 (선택)">`
+        : '';
       const tools = editable ? `
         <button class="btn btn-sm btn-ghost" data-action="move" data-id="${s.id}" data-dir="-1" ${i === 0 ? 'disabled' : ''}>▲</button>
         <button class="btn btn-sm btn-ghost" data-action="move" data-id="${s.id}" data-dir="1" ${i === state.order.length - 1 ? 'disabled' : ''}>▼</button>
         <button class="btn btn-sm btn-ghost" data-action="streamerImage" data-id="${s.id}" title="프로필 사진">사진</button>` : '';
       return `<li class="order-item" ${editable ? `draggable="true" data-drag-id="${s.id}"` : ''}>
-        <span class="idx num">${i + 1}</span>${avatar(s, { size: 36 })}<span class="name">${esc(s.name)}</span>${minBid}${tools}</li>`;
+        <span class="idx num">${i + 1}</span>${avatar(s, { size: 36 })}<span class="name">${esc(s.name)}</span>${score}${minBid}${tools}</li>`;
     }).join('');
     const extra = editable
-      ? `<button class="btn btn-sm" data-action="shuffle">🎲 무작위 순서</button>`
+      ? `<span class="row" style="gap:8px"><button class="btn btn-sm" data-action="loadScores" title="이 브라우저에 저장된 지난 개인 평가 점수를 이름으로 맞춰 채웁니다">📥 지난 평가 점수 불러오기</button>
+         <button class="btn btn-sm" data-action="shuffle">🎲 무작위 순서</button></span>`
       : `<span class="num">${state.order.length}명</span>`;
-    const hint = editable ? `<div class="muted" style="font-size:13px">드래그 또는 ▲▼로 순서 변경 · 모든 스트리머 최소 입찰가는 ${cr(state.rules.minBid)} 이상</div>` : '';
+    const hint = editable ? `<div class="muted" style="font-size:13px">드래그 또는 ▲▼로 순서 변경 · 모든 스트리머 최소 입찰가는 ${cr(state.rules.minBid)} 이상<br>
+      <b>평가</b> 칸: 개인 평가 점수 (선택, 옵저버만 보임) — 입력하면 결과 화면에 팀별 합계가 표시되고, 비워 두면 기존 경매와 같습니다</div>
+      <div class="order-head muted"><span class="idx"></span><span class="name"></span><span class="score">개인 평가</span><span class="minbid">최소 입찰</span><span class="tools"></span></div>` : '';
     return panel(`경매 순서 (${state.order.length}명)`, `${hint}<div class="panel-body"><ol class="order-list">${items}</ol></div>`, extra);
   },
 };
@@ -420,17 +427,23 @@ const log = {
 // ── 결과: 팀 구성 ──
 const teams = {
   render({ state, d, role }) {
+    // 개인 평가 점수를 하나라도 입력한 경매면 팀별 합계 · 순위 표시
+    const scored = state.streamers.some(s => s.score != null);
+    const sumOf = dir => dir.roster.reduce((a, id) => a + (d.byId[id]?.score ?? 0), 0);
+    const sums = scored ? state.directors.map(sumOf).sort((a, b) => b - a) : [];
+    const fmtScore = v => (Math.round(v * 10) / 10).toLocaleString('ko-KR');
     const cards = state.directors.map(dir => {
       const members = Array.from({ length: state.settings.teamSize }, (_, i) => {
         const s = d.byId[dir.roster[i]];
         return s
-          ? `<div class="team-member">${avatar(s, { square: true })}<span class="mname">${esc(s.name)}</span><span class="price num">${cr(s.price)}</span>${revokeBtn(state, role, s)}</div>`
+          ? `<div class="team-member">${avatar(s, { square: true })}<span class="mname">${esc(s.name)}</span>${scored ? `<span class="mscore num" title="개인 평가 점수">${s.score != null ? fmtScore(s.score) : '–'}</span>` : ''}<span class="price num">${cr(s.price)}</span>${revokeBtn(state, role, s)}</div>`
           : `<div class="team-member empty">빈 자리</div>`;
       }).join('');
       const spent = dir.roster.reduce((a, id) => a + (d.byId[id]?.price || 0), 0);
       return `<div class="team-card" style="--tc:${teamColor(dir)}">
         <div class="team-head">${avatar(dir, { ring: teamColor(dir) })}<div><div class="team-name">${esc(dir.name)} 팀</div>
-        <div class="muted">사용 <span class="num">${cr(spent)}</span> · 잔여 <span class="num">${cr(dir.points)}</span></div></div></div>${members}</div>`;
+        <div class="muted">사용 <span class="num">${cr(spent)}</span> · 잔여 <span class="num">${cr(dir.points)}</span></div></div>
+        ${scored ? `<div class="team-score" title="개인 평가 점수 합계"><span>개인 평가 합계</span><b class="num">${fmtScore(sumOf(dir))}</b><small>${sums.indexOf(sumOf(dir)) + 1}위</small></div>` : ''}</div>${members}</div>`;
     }).join('');
     return panel('최종 팀 구성', `<div class="panel-body"><div class="team-grid">${cards}</div></div>`);
   },

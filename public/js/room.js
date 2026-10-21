@@ -11,6 +11,13 @@ const params = new URLSearchParams(location.search);
 const observerKey = params.get('key');
 const TOKEN_KEY = `auction:dir:${code}`;        // 탭별 감독 토큰 (여러 탭으로 감독 8명 테스트 가능)
 const LAST_KEY = `auction:lastdir:${code}`;     // 브라우저 재시작 후 재입장용
+const SCORES_KEY = 'auction:scores';            // 옵저버 개인 평가 점수 { 스트리머 이름: 점수 } — 지난 평가 불러오기용 (이 브라우저에만 저장)
+const savedScores = () => { try { return JSON.parse(localStorage.getItem(SCORES_KEY) || '{}') || {}; } catch { return {}; } };
+function saveScore(name, value) {
+  const all = savedScores();
+  if (value === '' || value == null) delete all[name]; else all[name] = +value;
+  try { localStorage.setItem(SCORES_KEY, JSON.stringify(all)); } catch { /* 저장 불가 (사생활 보호 모드 등) */ }
+}
 
 // 개인 재접속 링크 (?token=...) — 토큰을 탭에 저장하고 주소창에서 지운다
 if (params.get('token')) {
@@ -140,6 +147,12 @@ const ACTIONS = {
   },
   copy: el => navigator.clipboard.writeText(el.dataset.text).then(() => toast('복사되었습니다')),
   shuffle: () => send('prep:shuffle'),
+  loadScores: async () => {
+    const scores = savedScores();
+    if (!Object.keys(scores).length) return toast('이 브라우저에 저장된 지난 평가 점수가 없습니다.', true);
+    const r = await send('prep:setScores', { scores });
+    if (r.ok) toast('지난 개인 평가 점수를 불러왔습니다.');
+  },
   move: el => {
     const order = state.order.slice();
     const i = order.indexOf(el.dataset.id), j = i + +el.dataset.dir;
@@ -199,6 +212,9 @@ document.addEventListener('click', e => {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.dataset?.action === 'minbid') send('prep:setMinBid', { id: el.dataset.id, minBid: el.value });
+  if (el.dataset?.action === 'score') {
+    send('prep:setScore', { id: el.dataset.id, score: el.value }).then(r => { if (r?.ok) saveScore(el.dataset.name, el.value.trim()); });
+  }
 });
 // 입찰: Enter 키
 document.addEventListener('keydown', e => {

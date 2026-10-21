@@ -47,10 +47,24 @@ const reserveFor = (room, d) => Math.max(0, room.settings.teamSize - d.roster.le
 const maxBidOf = (room, d) => Math.max(0, d.points - reserveFor(room, d));
 const minBidOf = s => Math.max(RULES.minBid, s.minBid || 0);
 
-/** 클라이언트로 보내는 공개 상태 (토큰·옵저버 키 제외) */
-export function publicState(room, now) {
+/** 클라이언트로 보내는 공개 상태 (토큰·옵저버 키 제외)
+ *  개인 평가 점수(score)는 옵저버 전용 — 다른 사람에게는 결과 화면에서만 보인다 (경매 중 입찰에 영향 주지 않도록) */
+export function publicState(room, now, role = 'viewer') {
   const { observerKey, botPlan, ...rest } = room;   // botPlan: 봇의 이번 경매 최대 입찰액 (비공개)
-  return { ...rest, directors: room.directors.map(({ token, ...d }) => d), serverNow: now, rules: RULES };
+  const showScore = role === 'observer' || room.phase === 'result';
+  return {
+    ...rest,
+    streamers: showScore ? room.streamers : room.streamers.map(({ score, ...s }) => s),
+    directors: room.directors.map(({ token, ...d }) => d), serverNow: now, rules: RULES,
+  };
+}
+/** 개인 평가 점수: 비우면 null (기존 경매와 같음), 숫자는 소수 첫째 자리까지 */
+const SCORE_LIMIT = 100000;
+function cleanScore(v) {
+  if (v === null || v === undefined || String(v).trim() === '') return null;
+  const n = +v;
+  if (!Number.isFinite(n)) return undefined;
+  return clamp(Math.round(n * 10) / 10, -SCORE_LIMIT, SCORE_LIMIT);
 }
 function log(room, now, type, text, extra = {}) {
   room.log.push({ id: uid(4), t: now, type, text, ...extra });
@@ -81,7 +95,7 @@ export function createRoom(b, code, now) {
     },
     phase: 'prep',            // prep → auction → rebid → result
     paused: false,
-    streamers: names.map(s => ({ id: uid(4), name: s.name, image: s.image, minBid: RULES.minBid, status: 'pending', teamId: null, price: null, stats: statsOf(s.name) })),
+    streamers: names.map(s => ({ id: uid(4), name: s.name, image: s.image, minBid: RULES.minBid, score: null, status: 'pending', teamId: null, price: null, stats: statsOf(s.name) })),
     order: [],
     cursor: -1,
     unsoldQueue: [],
@@ -361,6 +375,29 @@ const OBSERVER_ACTIONS = {
     const s = getStreamer(room, id);
     if (!s) return '스트리머를 찾을 수 없습니다.';
     s.minBid = clamp(Math.round((+minBid || 0) / RULES.bidStep) * RULES.bidStep, RULES.minBid, room.settings.startPoints);
+  },
+  // 개인 평가 점수 (선택) — 결과 화면에 팀별 합계로 표시
+  'prep:setScore'(room, now, { id, score }) {
+    if (room.phase !== 'prep') return '준비 단계에서만 가능합니다.';
+    const s = getStreamer(room, id);
+    if (!s) return '스트리머를 찾을 수 없습니다.';
+    const v = cleanScore(score);
+    if (v === undefined) return '평가 점수는 숫자로 입력하세요.';
+    s.score = v;
+  },
+  // 지난 평가 점수 불러오기: { 스트리머 이름: 점수 } 중 이 룸에 있는 이름만 반영
+  'prep:setScores'(room, now, { scores }) {
+    if (room.phase !== 'prep') return '준비 단계에서만 가능합니다.';
+    if (!scores || typeof scores !== 'object') return '잘못된 평가 점수입니다.';
+    let n = 0;
+    for (const s of room.streamers) {
+      if (!Object.hasOwn(scores, s.name)) continue;
+      const v = cleanScore(scores[s.name]);
+      if (v === undefined) continue;
+      s.score = v; n++;
+    }
+    if (!n) return '이 룸 명단과 겹치는 평가 점수가 없습니다.';
+    log(room, now, 'system', `개인 평가 점수 ${n}명 불러오기`);
   },
   'prep:setStreamerImage'(room, now, { id, image }) {
     const s = getStreamer(room, id);

@@ -114,6 +114,16 @@ h1, h2, h3 { margin: 0; font-family: var(--font-display); letter-spacing: .01em;
 .order-item .idx { width: 34px; text-align: center; font-weight: 700; color: var(--muted); font-family: var(--font-display); }
 .order-item .name { flex: 1; font-weight: 700; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .order-item .minbid { width: 110px; text-align: right; }
+.order-item .score { width: 90px; text-align: right; }
+.order-head { display: flex; align-items: center; gap: 10px; padding: 0 10px; font-size: 12px; font-weight: 700; }
+.order-head .idx { width: 34px; } .order-head .name { flex: 1; }
+.order-head .score { width: 90px; text-align: center; } .order-head .minbid { width: 110px; text-align: center; }
+.order-head .tools { width: 150px; }
+.team-card .team-score { margin-left: auto; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.15; }
+.team-card .team-score span { font-size: 12px; color: var(--muted); }
+.team-card .team-score b { font-family: var(--font-display); font-size: 24px; color: var(--accent-hi); }
+.team-card .team-score small { font-size: 12px; color: var(--text-2); font-weight: 700; }
+.team-member .mscore { color: var(--text-2); font-size: 13px; font-weight: 700; min-width: 36px; text-align: right; }
 .order-item.is-current { border-color: var(--accent); background: rgba(19, 176, 244, .12); box-shadow: inset 3px 0 0 var(--accent); }
 .order-item.is-current .idx { color: var(--point-1); }
 .order-item.is-done { opacity: .45; }

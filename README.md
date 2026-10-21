@@ -24,7 +24,7 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 | 단계 | 화면 | 내용 |
 |---|---|---|
 | 1. 룸 접속 | `/` | 옵저버: 룸 생성 (고정 스트리머 24명, 타이머 5~20초, 포인트 500~2000) · 감독: 룸 코드/링크로 입장 |
-| 2. 준비 | `/r/코드` | 옵저버: 순서 지정(드래그/▲▼/무작위), 최소 입찰가 지정 · 감독: 닉네임 등록, 순서/포인트 미리보기 |
+| 2. 준비 | `/r/코드` | 옵저버: 순서 지정(드래그/▲▼/무작위), 최소 입찰가 지정, 개인 평가 점수(선택) · 감독: 닉네임 등록, 순서/포인트 미리보기 |
 | 3. 경매 | `/r/코드` | 10P 단위 입찰, 상위 입찰 시 타이머 10초 리셋, 일시 정지/재진행 |
 | 4. 유찰 경매 | `/r/코드` | 유찰된 스트리머를 순서대로 재경매 (3명 완성 감독은 참여 불가) |
 | 5. 결과 | `/r/코드` | 팀별 구성 및 낙찰가 |
@@ -61,6 +61,11 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 - 기록 갱신: `node tools/fetch-ratings.js` → `src/ratings-data.js` (dak.gg 랭크 스쿼드, 인게임 닉네임은 `src/roster.js`)
 - 시세표 `/stats`: 평가표 + 끝난 모의 경매 낙찰가 집계 (시작 크레딧 1,000 기준 환산, 봇 포함/사람만 전환). 저장소는 StatsStore Durable Object
 
+## 개인 평가 점수 (선택 기능)
+- 준비 단계 경매 순서 목록의 `평가` 칸에 옵저버가 스트리머별 점수를 입력 (비워 두면 기존 경매와 완전히 같음)
+- 점수는 옵저버에게만 보이고, 결과 화면에서 모두에게 팀별 **개인 평가 합계 · 순위**와 선수별 점수로 공개
+- 입력한 점수는 옵저버 브라우저(localStorage `auction:scores`)에 이름별로 저장 → 다음 룸에서 `📥 지난 평가 점수 불러오기`로 이름을 맞춰 채움
+
 ## 옵저버 정정
 - `↺ 현재 경매 다시` (헤더): 현재 스트리머를 처음부터 다시 — 결과 표시 중이면 낙찰/유찰 취소 후 재경매
 - 감독 카드·최종 팀의 스트리머 `✕`: 낙찰 취소 → 크레딧 환급 후 유찰 경매에서 다시 (경매 종료 후면 유찰 경매 재개)
@@ -85,6 +90,7 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 ```bash
 BASE=http://localhost:8787 node test/sim.js   # 규칙 자동 검증 (npm run dev 실행 중, .dev.vars 의 ALLOW_TEST_STREAMERS=1 필요 — 로컬 전용)
 BASE=http://localhost:8787 node test/bots.js       # 봇 감독 · 옵저버 정정 검증
+BASE=http://localhost:8787 node test/scores.js     # 개인 평가 점수 (옵저버 전용 표시 · 불러오기 · 결과 공개)
 BASE=http://localhost:8787 node test/bots-full.js [판수]  # 봇 8명으로 24명 한 판 끝까지 (시세표 기록 확인)
 node test/bots-sim.js [판수] [시작 크레딧]       # 서버 없이 봇 8명 경매를 빠르게 여러 판 (유찰 수 · 남은 크레딧 · 성향별 팀 전력 점검)
 BASE=http://localhost:8787 node test/demo.js  # 감독 8명 · 스트리머 24명 데모 룸
