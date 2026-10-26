@@ -2,7 +2,7 @@
   "name": "team-auction",
   "version": "0.2.0",
   "private": true,
-  "description": "자낳대 방식 팀 경매 (옵저버 / 감독 / 방송 오버레이) — Cloudflare Workers + Durable Objects",
+  "description": "이리도 시즌 1 팀 경매 (옵저버 / 감독 / 방송 오버레이) — Cloudflare Workers + Durable Objects",
   "type": "module",
   "scripts": {
     "dev": "wrangler dev",
@@ -11,5 +11,9 @@
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
+  },
+  "allowScripts": {
+    "esbuild@0.28.1": true,
+    "workerd@1.20261006.1": true
   }
 }

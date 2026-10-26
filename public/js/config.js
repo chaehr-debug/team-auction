@@ -30,7 +30,8 @@ export const TICK_LAST_SECONDS = 0;
  * panels: 이 이미지를 쓸 패널 이름 (views.js 의 패널 이름)
  */
 export const BACKGROUNDS = {
-  queue:     { file: 'queue',     panels: ['queue', 'upcoming'] },  // 3단계 경매 순서 (오버레이 '다음 경매 순서' 포함)
+  header:    { file: 'header',    panels: ['header'] },               // 맨 위 룸 이름 · 단계 · 버튼 바 (모든 단계 공통)
+  queue:    { file: 'queue',     panels: ['queue', 'upcoming'] },  // 3단계 경매 순서 (오버레이 '다음 경매 순서' 포함)
   lot:       { file: 'lot',       panels: ['lot'] },                // 3단계 가운데 현재 경매 중인 스트리머 창
   log:       { file: 'log',       panels: ['log'] },                // 3단계 경매 로그
   directors: { file: 'directors', panels: ['directors'] },          // 3단계 감독 표기 창

@@ -1,4 +1,4 @@
-# 팀 경매 (자낳대 방식)
+# 이리도 시즌 1 팀 경매
 
 옵저버 1명 + 감독 최대 8명 + 고정 스트리머 24명으로 하는 실시간 팀 경매입니다.
 
@@ -105,7 +105,7 @@ BASE=http://localhost:8787 node test/demo.js  # 감독 8명 · 스트리머 24�
 - 서버 로그/오류 문구: `src/logic.js` 의 `CURRENCY` — 두 곳을 같이 바꿔주세요
 
 ## 패널 배경 이미지
-- `public/backgrounds/` 에 `queue` · `lot`(가운데 현재 경매 스트리머 창) · `log` · `directors` · `teams` 이름으로 이미지(webp/png/jpg/gif)를 넣고 `npm run deploy`
+- `public/backgrounds/` 에 `header`(맨 위 바) · `queue` · `lot`(가운데 현재 경매 스트리머 창) · `log` · `directors` · `teams` 이름으로 이미지(webp/png/jpg/gif)를 넣고 `npm run deploy`
 - 이름/패널 연결: `public/js/config.js` 의 `BACKGROUNDS` · 권장 크기는 `public/backgrounds/README.txt`
 
 ## 감독 캠 (vdo.ninja)

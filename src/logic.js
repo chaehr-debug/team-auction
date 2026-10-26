@@ -88,7 +88,7 @@ export function createRoom(b, code, now) {
   if (names.length > RULES.maxStreamers) return { error: `스트리머는 최대 ${RULES.maxStreamers}명입니다.` };
   const room = {
     code,
-    title: String(b.title || '팀 경매').slice(0, 40),
+    title: String(b.title || '이리도 시즌 1 팀 경매').slice(0, 40),
     observerKey: uid(12),
     createdAt: now,
     settings: {

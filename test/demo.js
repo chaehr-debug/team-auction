@@ -2,7 +2,7 @@
 // BASE=http://localhost:8787 node test/demo.js [prep]
 import { client, createRoom, BASE as URL } from './client.js';
 const wait = ms => new Promise(r => setTimeout(r, ms));
-const r = await createRoom({ title: '자낳대 시즌3 팀 경매', timerSec: 5, startPoints: 1000 });   // 스트리머는 고정 명단 (src/roster.js)
+const r = await createRoom({ title: '이리도 시즌 1 팀 경매', timerSec: 5, startPoints: 1000 });   // 스트리머는 고정 명단 (src/roster.js)
 console.log(`OBS=${URL}/r/${r.code}?key=${r.observerKey}`); console.log(`CODE=${r.code}`);
 const obs = await client(r.code); let st; obs.on('state', s => (st = s));
 await obs.call('join', { code: r.code, key: r.observerKey });
