@@ -23,6 +23,3 @@ export const VIEWS = {
 // 유찰 경매는 경매 화면을 그대로 사용
 VIEWS.rebid = VIEWS.auction;
 
-/** 방송 오버레이 기본 패널 (overlay.html?panels=lot,log 로 변경 가능)
- *  로그는 채팅창형 오버레이(?panels=log)로 따로 띄우므로 기본 화면엔 '다음 경매 순서'를 둔다 */
-export const OVERLAY_DEFAULT = ['directors', 'lot', 'cam', 'upcoming'];

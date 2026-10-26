@@ -41,8 +41,7 @@ let watchOnly = false;
 const links = {
   director: `${location.origin}/r/${code}`,
   observer: `${location.origin}/r/${code}?key=${observerKey}`,
-  overlay: `${location.origin}/overlay/${code}`,
-  overlayLog: `${location.origin}/overlay/${code}?panels=log&bg=transparent`,
+  overlayLog: `${location.origin}/overlay/${code}?bg=transparent`,
 };
 
 // ── 접속 ──

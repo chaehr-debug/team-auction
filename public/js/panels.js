@@ -4,7 +4,7 @@
 // 새 패널을 추가하면 views.js 와 layout.css 에 이름만 등록하면 됩니다.
 // ctx = { state, d(파생값), role, me(내 감독 정보), links, sound? }
 // ============================================================
-import { esc, fmt, cr, CURRENCY, avatar, teamColor, remainingMs, PHASES, mostPicks } from './common.js';
+import { esc, fmt, cr, CURRENCY, avatar, teamColor, remainingMs, serverNow, PHASES, mostPicks } from './common.js';
 import { CAM } from './config.js';
 
 const panel = (title, body, extra = '') =>
@@ -52,8 +52,7 @@ const share = {
       </div>`;
     return panel('룸 링크', `
       ${row('감독 입장 링크', links.director, '감독 8명에게 공유')}
-      ${row('방송 오버레이', links.overlay, 'OBS 브라우저 소스')}
-      ${row('로그만 오버레이', links.overlayLog, '채팅창 형태')}
+      ${row('로그 오버레이', links.overlayLog, 'OBS 브라우저 소스 · 채팅창 형태')}
       ${row('옵저버 링크', links.observer, '⚠ 비공개 — 진행자 전용')}
     `);
   },
@@ -244,7 +243,7 @@ function camSrc(url) {
   const extra = CAM.viewParams.split('&').filter(p => p && !url.includes(p.split('=')[0]));
   return extra.length ? `${url}&${extra.join('&')}` : url;
 }
-// vdo.ninja iframe API 로 받는 화질 조절: 보이는 캠만 선명하게, 나머지는 거의 0 (CAM.bitrate)
+// vdo.ninja iframe API 로 받는 화질 조절 (CAM.bitrate)
 function setCamBitrate(f, kbps) {
   if (!f._vdo || f._kbps === kbps) return;
   f._kbps = kbps;
@@ -255,50 +254,79 @@ const cam = {
   mount(el) {
     el.innerHTML = `<div class="cam-stage"></div><div class="cam-empty"></div><div class="cam-label"></div>`;
     el._frames = new Map();
+    el._shownId = null;     // 지금 화면에 보이는 캠의 감독
+    el._shownAt = 0;        // 마지막으로 화면을 바꾼 시각
+    // 입찰이 없어도 '고화질 유지 시간 만료'와 '미뤄둔 화면 전환'을 처리하도록 주기적으로 다시 계산
+    el._timer = setInterval(() => {
+      if (!el.isConnected) return clearInterval(el._timer);   // 패널이 사라지면 정리
+      if (el._ctx) cam.apply(el);
+    }, 250);
   },
-  update(el, { state, d }) {
+  update(el, ctx) {
+    el._ctx = ctx;
+    const { state } = ctx;
     const stage = el.querySelector('.cam-stage');
     const frames = el._frames;
-    const c = state.current;
-    const leader = c?.highBidderId ? d.dirById[c.highBidderId] : null;
+    const leaderId = state.current?.highBidderId ?? null;
     const want = new Map(state.directors.filter(x => x.cam).map(x => [x.id, camSrc(x.cam)]));
     for (const [id, f] of frames) {
       if (want.get(id) !== f.dataset.src) { f.remove(); frames.delete(id); }
     }
     for (const [id, src] of want) {
-      if (frames.has(id) || (!CAM.preload && id !== leader?.id)) continue;
+      if (frames.has(id) || (!CAM.preload && id !== leaderId)) continue;
       const f = document.createElement('iframe');
       f.src = src;
       f.dataset.src = src;
       f.allow = 'autoplay; fullscreen';
       f.setAttribute('allowtransparency', 'true');
       f._vdo = !!vdoId(src);
-      // 처음엔 대기 화질로 (8명이 동시에 고화질로 보내지 않도록) · 로딩/재접속 후에도 현재 화질을 다시 적용
       f._want = CAM.bitrate.idle;
+      // 로딩/재접속 후에도 현재 화질을 다시 적용
       f.addEventListener('load', () => { f._kbps = null; setTimeout(() => setCamBitrate(f, f._want), 1500); });
       stage.appendChild(f);
       frames.set(id, f);
     }
-    const showing = leader && frames.has(leader.id) ? leader : null;
+    cam.apply(el);
+  },
+  /** 화면에 보일 캠 · 캠별 받는 화질 · 라벨 계산 */
+  apply(el) {
+    const { state, d } = el._ctx;
+    const frames = el._frames;
+    const c = state.current;
+    const now = Date.now();
+    const leader = c?.highBidderId ? d.dirById[c.highBidderId] : null;
+
+    // 화면 전환: 최고 입찰자 캠으로 바꾸되, 마지막 전환 후 minSwitchMs 가 지나기 전이면 미뤄둔다 (250ms 마다 다시 확인)
+    const target = leader?.id ?? null;
+    if (target !== el._shownId && now - el._shownAt >= CAM.minSwitchMs) { el._shownId = target; el._shownAt = now; }
+    const shown = el._shownId ? d.dirById[el._shownId] : null;
+
+    // 받는 화질: 보이는 캠 + 최근 warmMs 안에 입찰한 감독은 고화질
+    const t = serverNow();
+    const warm = new Set(state.log.filter(l => l.type === 'bid' && t - l.t < CAM.warmMs).map(l => l.directorId));
+    if (leader) warm.add(leader.id);
     for (const [id, f] of frames) {
-      const on = id === showing?.id;
+      const on = id === shown?.id;
       f.classList.toggle('on', on);
-      f._want = on ? CAM.bitrate.active : CAM.bitrate.idle;
+      f._want = on || warm.has(id) ? CAM.bitrate.active : CAM.bitrate.idle;
       setCamBitrate(f, f._want);
     }
-    // vdo.ninja 가 재연결 등으로 화질을 되돌리는 경우를 대비해 주기적으로 다시 알림
-    clearInterval(el._brTimer);
-    el._brTimer = setInterval(() => {
-      if (!el.isConnected) return clearInterval(el._brTimer);   // 패널이 사라지면 정리
+    // vdo.ninja 가 재연결 등으로 화질을 되돌리는 경우를 대비해 10초마다 다시 알림
+    if (now - (el._resentAt || 0) > 10000) {
+      el._resentAt = now;
       for (const f of frames.values()) { f._kbps = null; setCamBitrate(f, f._want); }
-    }, 10000);
+    }
 
-    el.style.setProperty('--tc', teamColor(leader));
-    el.classList.toggle('has-leader', !!leader);
-    el.querySelector('.cam-label').innerHTML = leader
-      ? `${avatar(leader, { size: 30, ring: teamColor(leader) })}<span>${esc(leader.name)}</span><span class="amt">${cr(c.highBid)}</span>` : '';
+    // 라벨은 화면에 보이는 캠 기준 (금액은 그 감독이 지금 최고 입찰자일 때만)
+    const key = `${shown?.id}|${leader?.id}|${c?.highBid}|${!!c}|${shown?.cam}`;
+    if (key === el._labelKey) return;
+    el._labelKey = key;
+    el.style.setProperty('--tc', teamColor(shown));
+    el.classList.toggle('has-leader', !!shown);
+    el.querySelector('.cam-label').innerHTML = shown
+      ? `${avatar(shown, { size: 30, ring: teamColor(shown) })}<span>${esc(shown.name)}</span>${shown.id === leader?.id ? `<span class="amt">${cr(c.highBid)}</span>` : ''}` : '';
     el.querySelector('.cam-empty').textContent =
-      !c ? '' : !leader ? '입찰 대기 중' : leader.bot ? `🤖 ${leader.name} 입찰 중` : !leader.cam ? `${leader.name} 감독 캠 미등록` : '';
+      !c ? '' : !shown ? '입찰 대기 중' : shown.bot ? `🤖 ${shown.name} 입찰 중` : !frames.has(shown.id) ? `${shown.name} 감독 캠 미등록` : '';
   },
 };
 

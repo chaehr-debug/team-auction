@@ -32,12 +32,9 @@ npm run deploy    # Cloudflare 에 배포 (wrangler login 필요)
 ### 링크 종류
 - 감독 입장: `/r/코드`
 - 옵저버(진행자 전용): `/r/코드?key=옵저버키` — **공개 금지**
-- 방송 오버레이: `/overlay/코드`
-  - `?panels=log&bg=transparent` 로그만 / 투명 배경
-  - `?panels=lot` 현재 경매 대상만
-  - `?panels=directors,lot,log` 원하는 조합
-  - `bg=dark | transparent | green`
-  - 패널을 하나씩 OBS 브라우저 소스로 따로 띄우고 OBS에서 배치하는 방식도 가능합니다.
+- 로그 오버레이: `/overlay/코드?bg=transparent` — 채팅창 형태 경매 로그만 (OBS 브라우저 소스)
+  - `bg=dark | transparent | green` · `sound=0` 효과음 끄기 · `volume=0.5`
+  - 방송은 옵저버 화면으로 진행합니다 (감독·현재 경매·캠을 띄우던 방송 오버레이는 폐쇄)
 
 ## 레이아웃 수정 가이드
 
@@ -115,6 +112,8 @@ BASE=http://localhost:8787 node test/demo.js  # 감독 8명 · 스트리머 24�
 - 감독: 준비 단계 `내 팀` 패널의 **내 캠 연결하기** → 열린 vdo.ninja 창에서 카메라 선택 후 창을 계속 열어둠 (시청 링크 자동 등록)
   - 이미 쓰는 vdo.ninja 시청 링크가 있으면 붙여넣고 저장
 - 옵저버: 감독 카드의 `CAM` 버튼으로 대신 등록/수정 (경매 중에도 가능)
-- 표시: 옵저버 화면 좌하단 · 기본 오버레이 가운데 아래 · `/overlay/코드?panels=cam` 단독
-- 최고 입찰자(마지막으로 입찰한 감독)의 캠이 나오며, 8명 캠을 미리 불러와 즉시 전환
-- 설정(`public/js/config.js` 의 `CAM`): 시청 링크 옵션(`&cleanoutput&noaudio`), 미리 불러오기(`preload`)
+- 표시: 옵저버 화면 좌하단에만 (감독·시청자 화면은 캠을 받지 않음)
+- 최고 입찰자(마지막으로 입찰한 감독)의 캠이 나오며, 8명 캠을 미리 연결해 두어 즉시 전환
+  - 화면 전환은 0.8초에 한 번보다 자주 일어나지 않음 (연달아 입찰해도 깜빡이지 않도록)
+  - 받는 화질: 최근 8초 안에 입찰한 감독 캠은 고화질, 나머지는 대기 화질 (감독 업로드 부담 조절)
+- 설정(`public/js/config.js` 의 `CAM`): 송출 화질(`pushUrl`, 720p) · 받는 화질(`bitrate`) · 고화질 유지 시간(`warmMs`) · 전환 간격(`minSwitchMs`) · 시청 링크 옵션(`&cleanoutput&noaudio`) · 미리 불러오기(`preload`)

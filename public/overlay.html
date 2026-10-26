@@ -16,25 +16,21 @@
 <body class="overlay">
   <main id="app"></main>
   <script type="module">
-    // 방송 오버레이 (읽기 전용)
+    // 로그 오버레이 (읽기 전용) — 방송 화면용 채팅창 형태 경매 로그만 띄운다
+    // (감독·현재 경매·캠을 보여주던 방송 오버레이는 폐쇄: 방송은 옵저버 화면으로 진행)
     // 사용 예:
-    //   /overlay/ROOM                         기본 (감독 + 현재 경매 + 로그)
-    //   /overlay/ROOM?panels=log&bg=transparent  로그만, 투명 배경
-    //   /overlay/ROOM?panels=lot,log&layout=layout-overlay   원하는 패널 조합
-    //   /overlay/ROOM?panels=cam               감독 캠만 (입찰한 감독 캠)
+    //   /overlay/ROOM?bg=transparent   로그만, 투명 배경
     //   bg = dark(기본) | transparent | green
     //   sound=0 효과음 끄기 · volume=0.5 전체 음량
     //   (OBS 브라우저 소스에서 '오디오를 OBS로 제어'를 켜면 오버레이 소리를 방송에 섞을 수 있습니다)
     import { connect, syncClock, derive, keepStats } from '/js/common.js';
     import { createRenderer } from '/js/renderer.js';
-    import { VIEWS, OVERLAY_DEFAULT } from '/js/views.js';
     import { createSoundPlayer } from '/js/sound.js';
     import { applyBackgrounds } from '/js/bg.js';
     applyBackgrounds();
 
     const code = location.pathname.split('/').pop().toUpperCase();
     const q = new URLSearchParams(location.search);
-    const panels = q.get('panels') ? q.get('panels').split(',') : null;
     const bg = q.get('bg');
     if (bg) document.body.classList.add(`bg-${bg}`);
 
@@ -45,18 +41,7 @@
       keepStats(s);
       syncClock(s.serverNow);
       sound.onState(s);
-      let names, layout;
-      if (panels) {
-        names = panels;
-        layout = q.get('layout') || (names.length === 1 ? 'layout-overlay-single' : 'layout-overlay');
-      } else if (s.phase === 'auction' || s.phase === 'rebid') {
-        names = OVERLAY_DEFAULT;
-        layout = q.get('layout') || 'layout-overlay';
-      } else {
-        // 준비/결과 단계는 시청자 화면 그대로
-        ({ layout, panels: names } = VIEWS[s.phase].viewer);
-      }
-      renderer.render({ state: s, d: derive(s), role: 'viewer', me: null, links: {} }, layout, names);
+      renderer.render({ state: s, d: derive(s), role: 'viewer', me: null, links: {} }, 'layout-overlay-single', ['log']);
     };
     socket.on('connect', async () => {
       const r = await socket.call('join', { code });
