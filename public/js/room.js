@@ -147,6 +147,12 @@ const ACTIONS = {
   },
   copy: el => navigator.clipboard.writeText(el.dataset.text).then(() => toast('복사되었습니다')),
   shuffle: () => send('prep:shuffle'),
+  tournamentOrder: async () => {
+    const password = prompt('대회용 순서 비밀번호');
+    if (password === null) return;
+    const r = await send('prep:tournamentOrder', { password });
+    if (r.ok) toast('대회용 순서로 정렬했습니다.');
+  },
   loadScores: async () => {
     const scores = savedScores();
     if (!Object.keys(scores).length) return toast('이 브라우저에 저장된 지난 평가 점수가 없습니다.', true);

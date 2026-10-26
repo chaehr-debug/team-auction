@@ -80,7 +80,8 @@ const order = {
     }).join('');
     const extra = editable
       ? `<span class="row" style="gap:8px"><button class="btn btn-sm" data-action="loadScores" title="이 브라우저에 저장된 지난 개인 평가 점수를 이름으로 맞춰 채웁니다">📥 지난 평가 점수 불러오기</button>
-         <button class="btn btn-sm" data-action="shuffle">🎲 무작위 순서</button></span>`
+         <button class="btn btn-sm" data-action="shuffle">🎲 무작위 순서</button>
+         <button class="btn btn-sm" data-action="tournamentOrder" title="비밀번호를 입력하면 대회용 순서로 정렬합니다">🏆 대회용</button></span>`
       : `<span class="num">${state.order.length}명</span>`;
     const hint = editable ? `<div class="muted" style="font-size:13px">드래그 또는 ▲▼로 순서 변경 · 모든 스트리머 최소 입찰가는 ${cr(state.rules.minBid)} 이상<br>
       <b>평가</b> 칸: 개인 평가 점수 (선택, 옵저버만 보임) — 입력하면 결과 화면에 팀별 합계가 표시되고, 비워 두면 기존 경매와 같습니다</div>

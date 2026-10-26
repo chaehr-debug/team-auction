@@ -1,5 +1,6 @@
 // 경매 규칙 로직 — 플랫폼과 무관한 순수 함수 모음. 모든 판정은 서버(Durable Object)에서 이 파일로 한다.
 import { RATINGS, PERSONAS, personaValue } from './ratings.js';
+import { TOURNAMENT } from './roster.js';
 
 // ── 화폐 용어 (화면 쪽은 public/js/config.js 의 CURRENCY 와 맞춰주세요) ──
 export const CURRENCY = { name: '크레딧', unit: 'CR' };
@@ -373,6 +374,18 @@ const OBSERVER_ACTIONS = {
     if (room.phase !== 'prep') return '준비 단계에서만 가능합니다.';
     shuffle(room.order);
     log(room, now, 'system', '경매 순서 무작위 섞기');
+  },
+  // 대회용 순서 (roster.js 의 TOURNAMENT) — 명단에 없는 스트리머는 기존 순서대로 뒤에 붙인다
+  'prep:tournamentOrder'(room, now, { password }) {
+    if (room.phase !== 'prep') return '준비 단계에서만 가능합니다.';
+    if (String(password ?? '').trim() !== TOURNAMENT.password) return '비밀번호가 틀렸습니다.';
+    const rank = new Map(TOURNAMENT.order.map((name, i) => [name, i]));
+    const nameOf = id => getStreamer(room, id)?.name;
+    room.order = room.order
+      .map((id, i) => ({ id, k: rank.get(nameOf(id)) ?? TOURNAMENT.order.length + i }))
+      .sort((a, b) => a.k - b.k)
+      .map(x => x.id);
+    log(room, now, 'system', '경매 순서 대회용으로 정렬');
   },
   'prep:setMinBid'(room, now, { id, minBid }) {
     if (room.phase !== 'prep') return '준비 단계에서만 가능합니다.';

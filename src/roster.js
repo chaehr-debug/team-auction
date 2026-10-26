@@ -29,4 +29,14 @@ export const ROSTER = [
 ];
 export const STREAMER_NAMES = ROSTER.map(r => r.name);
 
+// 대회용 경매 순서 — 준비 단계 '🏆 대회용' 버튼 + 비밀번호로 적용 (서버에서만 확인, 화면 코드에는 보내지 않음)
+export const TOURNAMENT = {
+  password: '2784616',
+  order: [
+    '마린', '후참', '자연', '감규리', '왈도쿤', '앰비션', '플라이', '위구리',
+    '고수달', '이로나묭 치카', '갱맘', '네브짱', '베릴', '스나랑', '피닉스박', '방찌',
+    '이로클라우드', '눈가루', '큐베', '쾅준', '모카형', '플레임', '노페', '유세라',
+  ],
+};
+
 export const IMAGE_EXTS = ['webp', 'png', 'jpg', 'jpeg', 'gif'];
