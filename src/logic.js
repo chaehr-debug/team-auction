@@ -49,12 +49,16 @@ const minBidOf = s => Math.max(RULES.minBid, s.minBid || 0);
 
 /** 클라이언트로 보내는 공개 상태 (토큰·옵저버 키 제외)
  *  개인 평가 점수(score)는 옵저버 전용 — 다른 사람에게는 결과 화면에서만 보인다 (경매 중 입찰에 영향 주지 않도록) */
-export function publicState(room, now, role = 'viewer') {
+// 실시간 전송량 줄이기: 로그는 최근 LOG_SEND 개만 보내고(화면은 최근 40개만 표시),
+// 바뀌지 않는 스트리머 dak.gg 기록(stats)은 접속(join) 때 한 번만 보낸다 (full) — 클라이언트가 기억해 둠 (common.js keepStats)
+export const LOG_SEND = 60;
+export function publicState(room, now, role = 'viewer', { full = false } = {}) {
   const { observerKey, botPlan, ...rest } = room;   // botPlan: 봇의 이번 경매 최대 입찰액 (비공개)
   const showScore = role === 'observer' || room.phase === 'result';
   return {
     ...rest,
-    streamers: showScore ? room.streamers : room.streamers.map(({ score, ...s }) => s),
+    log: room.log.slice(-LOG_SEND),
+    streamers: room.streamers.map(({ score, stats, ...s }) => ({ ...s, ...(showScore ? { score } : {}), ...(full ? { stats } : {}) })),
     directors: room.directors.map(({ token, ...d }) => d), serverNow: now, rules: RULES,
   };
 }

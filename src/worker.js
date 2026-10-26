@@ -189,7 +189,7 @@ export class AuctionRoom extends DurableObject {
         if (director) { att.role = 'director'; att.directorId = director.id; director.connected = true; }
       }
       ws.serializeAttachment(att);
-      reply({ ok: true, role: att.role, directorId: att.directorId, state: publicState(room, now, att.role) });
+      reply({ ok: true, role: att.role, directorId: att.directorId, state: publicState(room, now, att.role, { full: true }) });
       if (director || ticked) await this.commit();
       return;
     }

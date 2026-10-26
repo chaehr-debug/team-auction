@@ -129,6 +129,16 @@ export function connect(code) {
   };
 }
 
+/** 스트리머 dak.gg 기록(stats)은 접속 때만 오므로 기억해 두었다가 이후 상태에 채운다 (서버 publicState 참고) */
+const statsCache = new Map();
+export function keepStats(state) {
+  for (const s of state.streamers) {
+    if ('stats' in s) statsCache.set(s.id, s.stats);
+    else if (statsCache.has(s.id)) s.stats = statsCache.get(s.id);
+  }
+  return state;
+}
+
 /** 룸 상태에서 자주 쓰는 계산 */
 export function derive(state) {
   const byId = Object.fromEntries(state.streamers.map(s => [s.id, s]));

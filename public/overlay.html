@@ -25,7 +25,7 @@
     //   bg = dark(기본) | transparent | green
     //   sound=0 효과음 끄기 · volume=0.5 전체 음량
     //   (OBS 브라우저 소스에서 '오디오를 OBS로 제어'를 켜면 오버레이 소리를 방송에 섞을 수 있습니다)
-    import { connect, syncClock, derive } from '/js/common.js';
+    import { connect, syncClock, derive, keepStats } from '/js/common.js';
     import { createRenderer } from '/js/renderer.js';
     import { VIEWS, OVERLAY_DEFAULT } from '/js/views.js';
     import { createSoundPlayer } from '/js/sound.js';
@@ -42,6 +42,7 @@
     const sound = createSoundPlayer({ enabled: q.get('sound') !== '0', volume: +(q.get('volume') ?? 1) });
     const renderer = createRenderer(document.getElementById('app'), { onFrame: s => sound.onFrame(s) });
     const onState = s => {
+      keepStats(s);
       syncClock(s.serverNow);
       sound.onState(s);
       let names, layout;

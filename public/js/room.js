@@ -1,5 +1,5 @@
 // 룸 페이지 (옵저버 / 감독 / 시청자 공용)
-import { connect, syncClock, derive, toast, avatar, uploadImage, pickFile, esc, CURRENCY } from './common.js';
+import { connect, syncClock, derive, keepStats, toast, avatar, uploadImage, pickFile, esc, CURRENCY } from './common.js';
 import { createRenderer } from './renderer.js';
 import { VIEWS } from './views.js';
 import { createSoundPlayer } from './sound.js';
@@ -62,6 +62,7 @@ fetch(`/api/rooms/${code}`).then(r => r.json()).then(r => { if (!r.exists) showM
 socket.on('state', onState);
 
 function onState(s) {
+  keepStats(s);
   state = s;
   syncClock(s.serverNow);
   sound.onState(s);
