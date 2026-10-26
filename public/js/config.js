@@ -41,16 +41,17 @@ export const BACKGROUND_EXTS = ['webp', 'png', 'jpg', 'jpeg', 'gif'];
 /** 감독 캠 (vdo.ninja) */
 export const CAM = {
   // 감독이 '내 캠 연결하기'를 누르면 열리는 송출 페이지 (ID 는 자동 생성)
-  // 캠 영상이 감독 인터넷(업로드)을 다 써버리면 경매 접속이 끊기거나 입찰이 늦게 도착하므로 화질을 제한한다
-  //   &quality=2: 약 640x360 · &maxvideobitrate=500: 시청자 1명당 최대 500kbps
-  //   (캠 화면은 작게 나오므로 이 정도면 충분. 더 선명하게: quality=1(720p) · 숫자 올리기 — 감독 업로드 부담도 같이 커짐)
-  pushUrl: id => `https://vdo.ninja/?push=${id}&webcam&quality=2&maxvideobitrate=500`,
+  // &quality=0: 최대 1080p 로 송출 (실제 화질은 아래 bitrate 로 옵저버 화면에서 조절)
+  pushUrl: id => `https://vdo.ninja/?push=${id}&webcam&quality=0`,
   // 등록되는 시청 링크
   viewUrl: id => `https://vdo.ninja/?view=${id}`,
-  // vdo.ninja 시청 링크에 자동으로 붙일 옵션: 화면 UI 숨김 + 감독 마이크 소리 끔 + 받는 화질 제한(400kbps)
+  // vdo.ninja 시청 링크에 자동으로 붙일 옵션: 화면 UI 숨김 + 감독 마이크 소리 끔
   // (감독 목소리를 방송에 넣고 싶으면 '&noaudio' 를 지우세요)
-  // &videobitrate 는 감독이 직접 붙여넣은 링크(위 송출 제한이 없는 경우)에도 적용되어 감독 업로드를 줄여준다
-  viewParams: '&cleanoutput&noaudio&videobitrate=400',
+  viewParams: '&cleanoutput&noaudio',
+  // 받는 화질 (kbps) — 캠은 옵저버 화면 · OBS 오버레이에서만 받는다 (감독·시청자 화면은 캠을 받지 않음)
+  //   active: 지금 최고 입찰자 캠 (화면에 보이는 캠) → 선명하게
+  //   idle:   화면에 안 보이고 대기 중인 캠 → 거의 0 으로 낮춰 감독 업로드(인터넷) 부담을 없앰 (연결은 유지해서 즉시 전환)
+  bitrate: { active: 4000, idle: 30 },
   // true: 8명 캠을 미리 모두 불러와 입찰 시 즉시 전환 / false: 입찰한 감독 캠만 그때 불러옴(전환 1~3초)
   preload: true,
 };

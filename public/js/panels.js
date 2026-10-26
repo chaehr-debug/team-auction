@@ -244,6 +244,12 @@ function camSrc(url) {
   const extra = CAM.viewParams.split('&').filter(p => p && !url.includes(p.split('=')[0]));
   return extra.length ? `${url}&${extra.join('&')}` : url;
 }
+// vdo.ninja iframe API 로 받는 화질 조절: 보이는 캠만 선명하게, 나머지는 거의 0 (CAM.bitrate)
+function setCamBitrate(f, kbps) {
+  if (!f._vdo || f._kbps === kbps) return;
+  f._kbps = kbps;
+  try { f.contentWindow?.postMessage({ bitrate: kbps }, '*'); } catch { /* 아직 로딩 중 — load 때 다시 보냄 */ }
+}
 const cam = {
   className: 'cam',
   mount(el) {
@@ -266,11 +272,26 @@ const cam = {
       f.dataset.src = src;
       f.allow = 'autoplay; fullscreen';
       f.setAttribute('allowtransparency', 'true');
+      f._vdo = !!vdoId(src);
+      // 처음엔 대기 화질로 (8명이 동시에 고화질로 보내지 않도록) · 로딩/재접속 후에도 현재 화질을 다시 적용
+      f._want = CAM.bitrate.idle;
+      f.addEventListener('load', () => { f._kbps = null; setTimeout(() => setCamBitrate(f, f._want), 1500); });
       stage.appendChild(f);
       frames.set(id, f);
     }
     const showing = leader && frames.has(leader.id) ? leader : null;
-    for (const [id, f] of frames) f.classList.toggle('on', id === showing?.id);
+    for (const [id, f] of frames) {
+      const on = id === showing?.id;
+      f.classList.toggle('on', on);
+      f._want = on ? CAM.bitrate.active : CAM.bitrate.idle;
+      setCamBitrate(f, f._want);
+    }
+    // vdo.ninja 가 재연결 등으로 화질을 되돌리는 경우를 대비해 주기적으로 다시 알림
+    clearInterval(el._brTimer);
+    el._brTimer = setInterval(() => {
+      if (!el.isConnected) return clearInterval(el._brTimer);   // 패널이 사라지면 정리
+      for (const f of frames.values()) { f._kbps = null; setCamBitrate(f, f._want); }
+    }, 10000);
 
     el.style.setProperty('--tc', teamColor(leader));
     el.classList.toggle('has-leader', !!leader);
@@ -394,7 +415,7 @@ const controls = {
 };
 
 // ── 경매 로그 (채팅형 — 증분 추가로 애니메이션 유지) ──
-const LOG_MAX_DOM = 40;
+const LOG_MAX_DOM = 20;
 const log = {
   mount(el) {
     el.innerHTML = panel('경매 로그', '<div class="log-feed"></div>');

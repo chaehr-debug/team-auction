@@ -24,7 +24,7 @@ const assert = (c, m) => { if (!c) { console.error('❌', m); process.exitCode =
   await until(() => state?.directors.length === 1);
 
   assert(joined.state.streamers.find(s => s.name === '플라이').stats?.power, '접속 시 스트리머 dak.gg 평가 첨부');
-  assert(!('stats' in state.streamers[0]) && state.log.length <= 60, '실시간 상태는 가볍게 (평가 기록 제외 · 로그 최근 60개)');
+  assert(!('stats' in state.streamers[0]) && state.log.length <= 30, '실시간 상태는 가볍게 (평가 기록 제외 · 로그 최근 30개)');
   assert((await H.call('prep:fillBots')).ok === false, '감독은 봇 추가 불가');
   assert((await obs.call('prep:fillBots')).ok, '옵저버 봇 채우기');
   assert(state.directors.length === 8 && state.directors.filter(d => d.bot).length === 7, '빈 자리 7개를 봇으로 채움');
