@@ -257,7 +257,7 @@ const cam = {
     el._frames = new Map();
     el._shownId = null;     // 지금 화면에 보이는 캠의 감독
     el._shownAt = 0;        // 마지막으로 화면을 바꾼 시각
-    // 입찰이 없어도 '고화질 유지 시간 만료'와 '미뤄둔 화면 전환'을 처리하도록 주기적으로 다시 계산
+    // 입찰이 없어도 '고화질 유지 시간 만료'를 처리하도록 주기적으로 다시 계산 (미뤄둔 화면 전환은 apply 의 타이머가 정확한 시각에 처리)
     el._timer = setInterval(() => {
       if (!el.isConnected) return clearInterval(el._timer);   // 패널이 사라지면 정리
       if (el._ctx) cam.apply(el);
@@ -297,9 +297,15 @@ const cam = {
     const now = Date.now();
     const leader = c?.highBidderId ? d.dirById[c.highBidderId] : null;
 
-    // 화면 전환: 최고 입찰자 캠으로 바꾸되, 마지막 전환 후 minSwitchMs 가 지나기 전이면 미뤄둔다 (250ms 마다 다시 확인)
+    // 화면 전환: 최고 입찰자(마지막 입찰자) 캠으로 바꾸되, 마지막 전환 후 minSwitchMs 가 지나기 전이면 미뤄둔다.
+    // 미룬 동안 A → B → A → B 처럼 입찰이 오가도 중간 입찰자는 건너뛰고, minSwitchMs 가 되는 순간의 마지막 입찰자 캠으로 바꾼다
+    // (그 순간 마지막 입찰자가 지금 보이는 감독이면 그대로 유지)
     const target = leader?.id ?? null;
-    if (target !== el._shownId && now - el._shownAt >= CAM.minSwitchMs) { el._shownId = target; el._shownAt = now; }
+    const wait = CAM.minSwitchMs - (now - el._shownAt);
+    if (target !== el._shownId && wait <= 0) { el._shownId = target; el._shownAt = now; }
+    else if (target !== el._shownId && !el._switchTimer) {
+      el._switchTimer = setTimeout(() => { el._switchTimer = null; if (el.isConnected) cam.apply(el); }, wait);
+    }
     const shown = el._shownId ? d.dirById[el._shownId] : null;
 
     // 받는 화질: 보이는 캠 + 최근 warmMs 안에 입찰한 감독은 고화질
