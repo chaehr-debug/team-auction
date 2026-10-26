@@ -41,8 +41,8 @@ export const BACKGROUND_EXTS = ['webp', 'png', 'jpg', 'jpeg', 'gif'];
 /** 감독 캠 (vdo.ninja) */
 export const CAM = {
   // 감독이 '내 캠 연결하기'를 누르면 열리는 송출 페이지 (ID 는 자동 생성)
-  // &quality=0: 최대 1080p 로 송출 (실제 화질은 아래 bitrate 로 옵저버 화면에서 조절)
-  pushUrl: id => `https://vdo.ninja/?push=${id}&webcam&quality=0`,
+  // &quality=1: 최대 720p 로 송출 (실제 화질은 아래 bitrate 로 옵저버 화면에서 조절)
+  pushUrl: id => `https://vdo.ninja/?push=${id}&webcam&quality=1`,
   // 등록되는 시청 링크
   viewUrl: id => `https://vdo.ninja/?view=${id}`,
   // vdo.ninja 시청 링크에 자동으로 붙일 옵션: 화면 UI 숨김 + 감독 마이크 소리 끔
@@ -51,7 +51,7 @@ export const CAM = {
   // 받는 화질 (kbps) — 캠은 옵저버 화면 · OBS 오버레이에서만 받는다 (감독·시청자 화면은 캠을 받지 않음)
   //   active: 지금 최고 입찰자 캠 (화면에 보이는 캠) → 선명하게
   //   idle:   화면에 안 보이고 대기 중인 캠 → 거의 0 으로 낮춰 감독 업로드(인터넷) 부담을 없앰 (연결은 유지해서 즉시 전환)
-  bitrate: { active: 4000, idle: 30 },
+  bitrate: { active: 2000, idle: 30 },
   // true: 8명 캠을 미리 모두 불러와 입찰 시 즉시 전환 / false: 입찰한 감독 캠만 그때 불러옴(전환 1~3초)
   preload: true,
 };
